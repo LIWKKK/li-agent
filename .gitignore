@@ -1,0 +1,5 @@
+build/
+gen/
+debug.keystore
+*.apk
+!WatchAI.apk

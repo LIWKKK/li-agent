@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="site.liweike.watchai"
+    android:versionCode="3"
+    android:versionName="0.3">
+    <uses-sdk android:minSdkVersion="23" android:targetSdkVersion="30" />
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-feature android:name="android.hardware.type.watch" android:required="false" />
+    <application
+        android:label="LI Agent"
+        android:icon="@drawable/ic_launcher"
+        android:roundIcon="@drawable/ic_launcher_round"
+        android:theme="@style/AppTheme"
+        android:allowBackup="false"
+        android:usesCleartextTraffic="true"
+        android:networkSecurityConfig="@xml/network_security_config">
+        <meta-data android:name="com.google.android.wearable.standalone" android:value="true" />
+        <activity android:name=".MainActivity" android:windowSoftInputMode="stateHidden">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+        <activity android:name=".WorkspacesActivity" />
+        <activity android:name=".ConversationsActivity" />
+        <activity android:name=".InformationActivity" />
+        <activity android:name=".AboutActivity" />
+        <activity android:name=".ChatActivity" android:windowSoftInputMode="adjustPan|stateHidden" />
+    </application>
+</manifest>
