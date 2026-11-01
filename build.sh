@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 cd "$(dirname "$0")"
-TC=/vol1/@appshare/fn-deepseek-harness/主工作区/cleanyourtv-workspace/toolchain
+TC="$HOME/android-toolchain"
 AJ=$TC/android-sdk/platforms/android-34/android.jar
 BT=$TC/android-sdk/build-tools/34.0.0
 export JAVA_HOME=$TC/jdk17
