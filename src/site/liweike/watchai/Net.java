@@ -168,6 +168,18 @@ final class Net {
         request("POST", path, body, cb);
     }
 
+    /**
+     * 删除一个 DSH 会话。
+     *
+     * 中继把它转给 dsh-session-manager 插件——真正干活的是插件（停 agent、
+     * flush、删会话目录、级联删子智能体、清投影缓存）。中继只负责鉴权和转发。
+     */
+    void deleteSession(String sessionId, Callback cb) {
+        JSONObject body = new JSONObject();
+        try { body.put("sessionId", sessionId); } catch (Exception ignored) { }
+        apiPost("/api/delete", body, cb);
+    }
+
     private void request(String method, String path, JSONObject body, Callback cb) {
         String[] candidates = bases();
         // 只有 GET 能并发：POST 并发会重复提交（比如把一条消息发两遍）。

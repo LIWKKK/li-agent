@@ -13,18 +13,24 @@ import org.json.JSONObject;
 
 /** 用量信息：环形图 = 今日占全部历史总量的比例。 */
 public class UsageActivity extends BaseActivity {
+    private RingView ring;
+    private TextView pct, note;
+    private LinearLayout stats;
+    private Ticker ticker;
+    private boolean loading;
+
     @Override protected void build() {
         TextView title = Ui.text(this, "用量信息", 25, Ui.TEXT, "sans-serif-medium");
         title.setGravity(Gravity.CENTER);
         stage.addView(title, Ui.fl(360, -2, Gravity.TOP | Gravity.CENTER_HORIZONTAL, 0, 38));
 
         FrameLayout box = new FrameLayout(this);
-        final RingView ring = new RingView(this);
+        ring = new RingView(this);
         box.addView(ring, new FrameLayout.LayoutParams(-1, -1));
         LinearLayout mid = new LinearLayout(this);
         mid.setOrientation(LinearLayout.VERTICAL);
         mid.setGravity(Gravity.CENTER);
-        final TextView pct = Ui.text(this, "0%", 62, Ui.TEXT, "sans-serif-light");
+        pct = Ui.text(this, "0%", 62, Ui.TEXT, "sans-serif-light");
         pct.setGravity(Gravity.CENTER);
         mid.addView(pct);
         View sp = new View(this);
@@ -34,15 +40,35 @@ public class UsageActivity extends BaseActivity {
         box.addView(mid, new FrameLayout.LayoutParams(-1, -1));
         stage.addView(box, Ui.fl(228, 228, Gravity.TOP | Gravity.CENTER_HORIZONTAL, 0, 84));
 
-        final LinearLayout stats = new LinearLayout(this);
+        stats = new LinearLayout(this);
         stats.setOrientation(LinearLayout.HORIZONTAL);
         stats.setGravity(Gravity.CENTER);
         stage.addView(stats, Ui.fl(-2, -2, Gravity.TOP | Gravity.CENTER_HORIZONTAL, 0, 326));
 
-        final TextView note = Ui.text(this, "读取中…", 18, Ui.SUB, "sans-serif");
+        note = Ui.text(this, "读取中…", 18, Ui.SUB, "sans-serif");
         stage.addView(note, Ui.fl(-2, -2, Gravity.TOP | Gravity.CENTER_HORIZONTAL, 0, 394));
 
+        // 中继侧用量有 60 秒缓存，取 15 秒一次的轮询节奏没有意义，但用户进来
+        // 待着不动时数字自己会跳，比"退出重进"好。开会话时立即拉一次。
+        ticker = new Ticker(20_000, this::load);
+    }
+
+    @Override protected void onResume() {
+        super.onResume();
+        ticker.start();
+    }
+
+    @Override protected void onPause() {
+        super.onPause();
+        ticker.stop();
+    }
+
+    private void load() {
+        if (loading) return;
+        loading = true;
         Net.get(this).apiCached(this, "/api/usage?days=7300", (ok, value, error) -> {
+            loading = false;
+            if (isFinishing() || isDestroyed()) return;
             if (!ok || value == null || !value.optBoolean("known", false)) {
                 note.setText(error == null ? "暂无用量数据" : error);
                 return;
@@ -55,6 +81,7 @@ public class UsageActivity extends BaseActivity {
                 if (d != null) local += d.optLong("inputTokens") + d.optLong("outputTokens");
             }
             long total = value.optLong("totalTokens", local);
+            stats.removeAllViews();
             if (days != null && days.length() > 0) {
                 JSONObject last = days.optJSONObject(days.length() - 1);
                 if (last != null) today = last.optLong("totalTokens");

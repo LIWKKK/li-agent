@@ -97,6 +97,27 @@ final class Ui {
         });
     }
 
+    /**
+     * 给一行列表挂长按，5% 震动反馈。
+     *
+     * 手表屏幕小、手指粗，长按是最不容易误触的删除手势；按下时就震一下，
+     * 不用等 500ms 系统阈值过去才知道"按对了"。
+     */
+    static void longPress(View v, Runnable action) {
+        android.os.Vibrator vib = (android.os.Vibrator) v.getContext()
+                .getSystemService(Context.VIBRATOR_SERVICE);
+        v.setOnLongClickListener(x -> {
+            if (vib != null && vib.hasVibrator()) {
+                try { vib.vibrate(35); } catch (Exception ignored) { }
+            }
+            x.animate().scaleX(0.94f).scaleY(0.94f).setDuration(80)
+                    .withEndAction(() -> x.animate().scaleX(1f).scaleY(1f).setDuration(140).start())
+                    .start();
+            if (action != null) action.run();
+            return true;
+        });
+    }
+
     static void rise(View v, int delay) {
         v.setAlpha(0f);
         v.setTranslationY(px(14));

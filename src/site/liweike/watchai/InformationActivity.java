@@ -1,5 +1,6 @@
 package site.liweike.watchai;
 
+import android.os.SystemClock;
 import android.text.TextUtils;
 import android.view.Gravity;
 import android.view.View;
@@ -16,6 +17,14 @@ import java.util.Locale;
 /** 电脑系统/硬件信息 + 模型 token 用量 + 热力图（数据来自中继 /api/live、/api/usage）。 */
 public class InformationActivity extends BaseActivity {
     private LinearLayout col;
+    /** 数据区：每次刷新整体重建，避免旧卡片越堆越多。 */
+    private LinearLayout body;
+    private TextView sub;
+    /** 实时区与用量区各自独立，刷新时只清自己那块，互不干扰。 */
+    private LinearLayout liveBody;
+    private LinearLayout usageBody;
+    private Ticker ticker;
+    private long usageAt;
 
     @Override protected void build() {
         ScrollView sv = new ScrollView(this);
@@ -36,24 +45,62 @@ public class InformationActivity extends BaseActivity {
         LinearLayout.LayoutParams hp = new LinearLayout.LayoutParams(Ui.px(330), -2);
         hp.gravity = Gravity.CENTER_HORIZONTAL;
         col.addView(head, hp);
-        TextView sub = Ui.text(this, "读取中…", 19, Ui.SUB, Ui.SANS);
+        sub = Ui.text(this, "读取中…", 19, Ui.SUB, Ui.SANS);
         LinearLayout.LayoutParams sp = new LinearLayout.LayoutParams(-2, -2);
         sp.topMargin = Ui.px(6);
         sp.bottomMargin = Ui.px(20);
         col.addView(sub, sp);
 
+        liveBody = column();
+        usageBody = column();
+
+        // 实时 15 秒一刷；用量在中继侧有 60 秒缓存，跟着刷就是白发请求。
+        ticker = new Ticker(15_000, this::refresh);
+    }
+
+    private LinearLayout column() {
+        LinearLayout c = new LinearLayout(this);
+        c.setOrientation(LinearLayout.VERTICAL);
+        c.setGravity(Gravity.CENTER_HORIZONTAL);
+        col.addView(c, new LinearLayout.LayoutParams(-1, -2));
+        return c;
+    }
+
+    /** 拉一次实时数据并重绘。离开页面时由 onPause 停掉。 */
+    private void refresh() {
         Net.get(this).apiCached(this, "/api/live", (ok, value, error) -> {
+            if (isFinishing() || isDestroyed()) return;
             if (!ok || value == null || !value.optBoolean("ok", false)) {
-                sub.setText(error == null ? "连不上中继" : error);
+                // 只在还没画出任何东西时提示失败，别把已有内容擦掉。
+                if (liveBody.getChildCount() == 0) {
+                    sub.setText(error == null ? "连不上中继" : error);
+                }
                 return;
             }
             sub.setText("实时 · 15 秒刷新");
+            liveBody.removeAllViews();
             renderLive(value);
-        });
-        Net.get(this).apiCached(this, "/api/usage?days=7300", (ok, value, error) -> {
-            if (ok && value != null && value.optBoolean("known", false)) renderUsage(value);
-        });
 
+            if (SystemClock.elapsedRealtime() - usageAt > 60_000) {
+                usageAt = SystemClock.elapsedRealtime();
+                Net.get(this).apiCached(this, "/api/usage?days=7300", (ok2, v2, e2) -> {
+                    if (isFinishing() || isDestroyed()) return;
+                    if (!ok2 || v2 == null || !v2.optBoolean("known", false)) return;
+                    usageBody.removeAllViews();
+                    renderUsage(v2);
+                });
+            }
+        });
+    }
+
+    @Override protected void onResume() {
+        super.onResume();
+        ticker.start();
+    }
+
+    @Override protected void onPause() {
+        super.onPause();
+        ticker.stop();
     }
 
     private void renderLive(JSONObject value) {
@@ -62,16 +109,16 @@ public class InformationActivity extends BaseActivity {
         JSONObject dsh = value.optJSONObject("dsh");
 
         if (host != null) {
-            col.addView(label("系统"));
+            liveBody.addView(label("系统"));
             LinearLayout sys = card();
             sys.addView(kv("主机", str(host, "hostname"), 80));
             sys.addView(kv("平台", str(host, "platform") + " " + str(host, "release"), 80));
             sys.addView(kv("架构", str(host, "arch"), 80));
             long up = host.optLong("uptimeSec");
             if (up > 0) sys.addView(kv("运行", duration(up), 80));
-            col.addView(sys);
+            liveBody.addView(sys);
 
-            col.addView(label("硬件"));
+            liveBody.addView(label("硬件"));
             LinearLayout hw = card();
             int load = host.optInt("loadPct");
             // 只到系列，不暴露具体型号与核数。
@@ -92,11 +139,11 @@ public class InformationActivity extends BaseActivity {
             if (host.optLong("processes") > 0) {
                 hw.addView(kv("进程", String.valueOf(host.optLong("processes")), 80));
             }
-            col.addView(hw);
+            liveBody.addView(hw);
 
             JSONArray disks = host.optJSONArray("disks");
             if (disks != null && disks.length() > 0) {
-                col.addView(label("磁盘"));
+                liveBody.addView(label("磁盘"));
                 LinearLayout dc = card();
                 for (int i = 0; i < disks.length(); i++) {
                     JSONObject d = disks.optJSONObject(i);
@@ -106,12 +153,12 @@ public class InformationActivity extends BaseActivity {
                             bytes(d.optLong("used")) + " / " + bytes(total),
                             total > 0 ? (float) d.optLong("used") / total : 0f));
                 }
-                col.addView(dc);
+                liveBody.addView(dc);
             }
         }
 
         if (dsh != null) {
-            col.addView(label("DSH"));
+            liveBody.addView(label("DSH"));
             LinearLayout c = card();
             boolean authOk = dsh.optBoolean("authOk", false);
             c.addView(kv("连接", authOk ? "正常 · " + dsh.optInt("latencyMs") + "ms" : "不可用", 80));
@@ -121,7 +168,7 @@ public class InformationActivity extends BaseActivity {
                 c.addView(kv("待答", String.valueOf(stats.optInt("waiting")), 80));
                 c.addView(kv("子任务", String.valueOf(stats.optInt("subagents")), 80));
             }
-            col.addView(c);
+            liveBody.addView(c);
         }
     }
 
@@ -144,7 +191,7 @@ public class InformationActivity extends BaseActivity {
             if (i == days.length() - 1) today = t;
         }
 
-        col.addView(label("模型 TOKEN 用量"));
+        usageBody.addView(label("模型 TOKEN 用量"));
         LinearLayout tk = card();
         tk.addView(Ui.text(this, shortTokens(total), 44, Ui.TEXT, Ui.SERIF));
         TextView cap = Ui.text(this, "全部", 19, Ui.SUB, Ui.SANS);
@@ -171,9 +218,9 @@ public class InformationActivity extends BaseActivity {
         tk.addView(kv("输出", shortTokens(output), 150));
         tk.addView(kv("缓存读", shortTokens(cacheRead), 150));
         tk.addView(kv("今日", shortTokens(today), 150));
-        col.addView(tk);
+        usageBody.addView(tk);
 
-        col.addView(label("热力图"));
+        usageBody.addView(label("热力图"));
         LinearLayout hm = card();
         int weeks = Math.max(1, Math.min(53, (days.length() + 6) / 7));
         TextView hc = Ui.text(this, "每日 token · " + days.length() + " 天", 18, Ui.SUB, Ui.SANS);
@@ -185,7 +232,7 @@ public class InformationActivity extends BaseActivity {
         hm.addView(new HeatmapView(this, weeks, buildHeat(days, peak)),
                 new LinearLayout.LayoutParams(-1, Ui.px(heatHeight)));
         hm.addView(heatLegend());
-        col.addView(hm);
+        usageBody.addView(hm);
     }
 
     /** 把日用量转成 weeks×7 的 0..4 档热力格。 */

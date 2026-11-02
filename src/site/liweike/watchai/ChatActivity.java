@@ -69,14 +69,21 @@ public class ChatActivity extends ListScreen {
         chatId = getIntent().getStringExtra("chatId");
         if (chatId == null) chatId = "";
 
-        String title = getIntent().getStringExtra("title");
-        if (title == null) title = "DeepSeek Chat";
+        String initial = getIntent().getStringExtra("title");
+        final String title = initial == null ? "DeepSeek Chat" : initial;
         TextView hdr = Ui.text(this, "‹  " + title, 21, Ui.SUB, Ui.SANS_M);
         hdr.setSingleLine(true);
         hdr.setEllipsize(TextUtils.TruncateAt.END);
         hdr.setMaxWidth(Ui.px(230));
         hdr.setPadding(Ui.px(14), Ui.px(4), Ui.px(14), Ui.px(4));
         hdr.setOnClickListener(v -> finish());
+        // 长按标题删掉当前这个会话（点一下还是返回）。
+        Ui.longPress(hdr, () -> {
+            boolean active = busy || polling;
+            confirmDialog("删除会话", title,
+                    active ? "正在运行，删除会立即中断" : null,
+                    this::deleteThisChat);
+        });
         stage.addView(hdr, Ui.fl(-2, -2, Gravity.TOP | Gravity.CENTER_HORIZONTAL, 0, 24));
 
         LinearLayout chips = new LinearLayout(this);
@@ -253,6 +260,7 @@ public class ChatActivity extends ListScreen {
     }
 
     @Override protected void handleBack() {
+        if (confirmOpen()) { closeConfirm(); return; }
         if (panel != null) closePanel(); else finish();
     }
 
@@ -479,30 +487,37 @@ public class ChatActivity extends ListScreen {
 
     private boolean polling;
     private long pollStart;
-    /** 3 分钟还没跑完就放弃，省电。 */
-    private static final long POLL_LIMIT_MS = 3 * 60 * 1000;
-    private static final long POLL_INTERVAL_MS = 2000;
+    /**
+     * 空闲时也一直轮询。
+     *
+     * 之前只在"自己刚发完消息"时才轮询，并且 3 分钟就放弃——于是电脑上手动
+     * 发起的回合、或者超过 3 分钟的长任务，手表上永远看不到，只能退出重进。
+     * 现在分两档：跑着的时候 2 秒一次，空闲时 6 秒一次，都不设上限，
+     * 只在退到后台或离开页面时停。
+     */
+    private static final long POLL_BUSY_MS = 2000;
+    private static final long POLL_IDLE_MS = 6000;
 
     private final Runnable pollRunnable = new Runnable() {
         @Override public void run() {
             if (!polling || activityGone()) return;
-            if (SystemClock.elapsedRealtime() - pollStart > POLL_LIMIT_MS) {
-                stopPolling();
-                return;
-            }
             Net.get(ChatActivity.this).api("/api/session?id=" + enc(sessionId),
                     (ok, value, error) -> {
                         if (!polling || activityGone()) return;
+                        boolean serverRunning = false;
                         if (ok && value != null && value.optBoolean("ok", false)) {
                             appendNewMessages(value.optJSONArray("messages"));
-                            if (!value.optBoolean("running", false)) {
-                                stopPolling();
+                            serverRunning = value.optBoolean("running", false);
+                            if (!serverRunning) {
                                 busy = false;
+                                clearPlaceholder();
                                 refreshChips();
-                                return;
                             }
                         }
-                        if (polling) handler.postDelayed(pollRunnable, POLL_INTERVAL_MS);
+                        if (polling) {
+                            handler.postDelayed(pollRunnable,
+                                    serverRunning ? POLL_BUSY_MS : POLL_IDLE_MS);
+                        }
                     });
         }
     };
@@ -560,6 +575,39 @@ public class ChatActivity extends ListScreen {
         } catch (Exception ignored) { }
     }
 
+    /** 删掉当前会话，成功后退出这一页。 */
+    private void deleteThisChat() {
+        if ("harness".equals(mode)) {
+            Net.get(this).deleteSession(sessionId, (ok, value, error) -> {
+                if (isFinishing() || isDestroyed()) return;
+                if (!ok || value == null || !value.optBoolean("ok", false)) {
+                    android.widget.Toast.makeText(this,
+                            error == null || error.isEmpty() ? "删除失败" : error,
+                            android.widget.Toast.LENGTH_SHORT).show();
+                    return;
+                }
+                stopPolling();
+                finish();
+            });
+        } else {
+            // DeepSeek 会话只在本地：删记录 + 删消息体。
+            getSharedPreferences("li", MODE_PRIVATE).edit()
+                    .remove("ds_msg_" + chatId).apply();
+            JSONArray chats = new JSONArray();
+            try { chats = new JSONArray(getSharedPreferences("li", MODE_PRIVATE)
+                    .getString("ds_chats", "[]")); } catch (Exception ignored) { }
+            JSONArray kept = new JSONArray();
+            for (int i = 0; i < chats.length(); i++) {
+                JSONObject c = chats.optJSONObject(i);
+                if (c == null || chatId.equals(c.optString("id", ""))) continue;
+                kept.put(c);
+            }
+            getSharedPreferences("li", MODE_PRIVATE).edit()
+                    .putString("ds_chats", kept.toString()).apply();
+            finish();
+        }
+    }
+
     private static String enc(String s) {
         try { return java.net.URLEncoder.encode(s == null ? "" : s, "UTF-8").replace("+", "%20"); }
         catch (Exception e) { return s == null ? "" : s; }
@@ -579,13 +627,7 @@ public class ChatActivity extends ListScreen {
 
     @Override protected void onResume() {
         super.onResume();
-        // 切走再回来：查一次会话状态，还在跑就继续盯着。
-        if ("harness".equals(mode) && !polling) {
-            Net.get(this).api("/api/session?id=" + enc(sessionId), (ok, value, error) -> {
-                if (!activityGone() && ok && value != null && value.optBoolean("running", false)) {
-                    startPolling();
-                }
-            });
-        }
+        // harness 会话一进来就常驻轮询：不管是谁在电脑上触发的回合，都要能看见。
+        if ("harness".equals(mode)) startPolling();
     }
 }

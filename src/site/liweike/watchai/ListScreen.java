@@ -1,5 +1,6 @@
 package site.liweike.watchai;
 
+import android.graphics.drawable.GradientDrawable;
 import android.text.TextUtils;
 import android.view.Gravity;
 import android.view.View;
@@ -133,6 +134,103 @@ public abstract class ListScreen extends BaseActivity {
         lp.bottomMargin = Ui.px(12);
         c.setLayoutParams(lp);
         return c;
+    }
+
+    // ---------------------------------------------------------------- 确认浮层
+
+    /** 当前开着的确认浮层，同一时刻只允许一个。 */
+    private FrameLayout confirmLayer;
+
+    protected boolean confirmOpen() { return confirmLayer != null; }
+
+    protected void closeConfirm() {
+        if (confirmLayer == null) return;
+        stage.removeView(confirmLayer);
+        confirmLayer = null;
+    }
+
+    /**
+     * 一句确认再动手。
+     *
+     * 手表屏幕小、删除不可恢复，长按后直接执行太容易误触；这里给"取消/删除"
+     * 两个大按钮，点空白也等于取消。
+     */
+    protected void confirmDialog(String title, String subtitle, String warn, Runnable onOk) {
+        closeConfirm();
+        confirmLayer = new FrameLayout(this);
+        confirmLayer.setBackgroundColor(0xF21F1E1D);
+        confirmLayer.setClickable(true);
+        confirmLayer.setOnClickListener(v -> closeConfirm());
+        stage.addView(confirmLayer, new FrameLayout.LayoutParams(-1, -1));
+
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        box.setGravity(Gravity.CENTER_HORIZONTAL);
+        box.setBackground(Ui.card(30));
+        box.setPadding(Ui.px(22), Ui.px(20), Ui.px(22), Ui.px(18));
+
+        TextView t = Ui.text(this, title, 24, Ui.TEXT, Ui.SERIF);
+        t.setGravity(Gravity.CENTER);
+        box.addView(t);
+
+        if (subtitle != null) {
+            TextView name = Ui.text(this, subtitle, 20, Ui.SUB, Ui.SANS);
+            name.setGravity(Gravity.CENTER);
+            name.setMaxWidth(Ui.px(250));
+            LinearLayout.LayoutParams np = new LinearLayout.LayoutParams(-1, -2);
+            np.topMargin = Ui.px(10);
+            box.addView(name, np);
+        }
+
+        if (warn != null) {
+            TextView w = Ui.text(this, warn, 17, Ui.A1, Ui.SANS);
+            w.setGravity(Gravity.CENTER);
+            w.setMaxWidth(Ui.px(250));
+            LinearLayout.LayoutParams wp = new LinearLayout.LayoutParams(-1, -2);
+            wp.topMargin = Ui.px(8);
+            box.addView(w, wp);
+        }
+
+        LinearLayout buttons = new LinearLayout(this);
+        buttons.setOrientation(LinearLayout.HORIZONTAL);
+        buttons.setGravity(Gravity.CENTER);
+        LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(-1, -2);
+        bp.topMargin = Ui.px(18);
+        box.addView(buttons, bp);
+
+        View cancel = confirmButton("取消", false);
+        cancel.setOnClickListener(v -> closeConfirm());
+        buttons.addView(cancel);
+
+        View ok = confirmButton("删除", true);
+        ok.setOnClickListener(v -> {
+            closeConfirm();
+            if (onOk != null) onOk.run();
+        });
+        LinearLayout.LayoutParams okp = new LinearLayout.LayoutParams(-2, -2);
+        okp.leftMargin = Ui.px(12);
+        buttons.addView(ok, okp);
+
+        confirmLayer.addView(box, new FrameLayout.LayoutParams(Ui.px(300), -2, Gravity.CENTER));
+        Ui.rise(box, 0);
+    }
+
+    private View confirmButton(String text, boolean danger) {
+        TextView t = Ui.text(this, text, 21, danger ? 0xFFFFFFFF : Ui.TEXT, Ui.SANS_M);
+        t.setGravity(Gravity.CENTER);
+        t.setPadding(Ui.px(24), Ui.px(13), Ui.px(24), Ui.px(13));
+        GradientDrawable g = new GradientDrawable();
+        g.setCornerRadius(Ui.px(22));
+        if (danger) {
+            g.setColor(0xFFB4462F);
+        } else {
+            g.setColor(Ui.CHIP);
+            g.setStroke(Math.max(1, Ui.px(1)), Ui.STROKE);
+        }
+        t.setBackground(g);
+        t.setClickable(true);
+        Ui.pressable(t);
+        return t;
     }
 
     protected View kv(String k, String v, int keyW) {

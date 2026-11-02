@@ -9,7 +9,7 @@ export PATH=$JAVA_HOME/bin:$BT:$PATH
 rm -rf build gen && mkdir -p build/classes gen
 $BT/aapt2 compile --dir res -o build/res.zip
 $BT/aapt2 link -o build/unaligned.apk -I $AJ --manifest AndroidManifest.xml \
-  --java gen --min-sdk-version 23 --target-sdk-version 30 --version-code 3 --version-name 0.3 build/res.zip
+  --java gen --min-sdk-version 23 --target-sdk-version 30 --version-code 4 --version-name 0.4 build/res.zip
 javac -encoding UTF-8 --release 8 -Xlint:-options -cp $AJ -d build/classes \
   src/site/liweike/watchai/*.java gen/site/liweike/watchai/R.java
 $JAVA_HOME/bin/jar --create --file build/classes.jar -C build/classes .
