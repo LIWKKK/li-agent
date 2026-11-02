@@ -2,253 +2,246 @@ package site.liweike.watchai;
 
 import android.graphics.drawable.GradientDrawable;
 import android.text.TextUtils;
-import android.view.Gravity;
 import android.view.View;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
 
-/** Shared round-screen building blocks: lists, cards, labels, key/value rows. */
+/* JADX INFO: loaded from: classes.dex */
 public abstract class ListScreen extends BaseActivity {
     protected LinearLayout col;
+    private FrameLayout overlay;
 
-    protected void startList(String heading, String sub) {
-        col = makeList(stage, heading, sub, 52);
+    protected void startList(String str, String str2) {
+        this.col = makeList(this.stage, str, str2, 52);
     }
 
-    /** Scrolling list whose rows shrink/fade toward the screen edges. heading may be null. */
-    protected LinearLayout makeList(FrameLayout parent, String heading, String sub, int topPad) {
-        EdgeScrollView sv = new EdgeScrollView(this);
-        LinearLayout list = new LinearLayout(this);
-        list.setOrientation(LinearLayout.VERTICAL);
-        list.setGravity(Gravity.CENTER_HORIZONTAL);
-        list.setPadding(0, Ui.px(topPad), 0, Ui.px(120));
-        if (heading != null) {
-            TextView h = Ui.text(this, heading, 26, Ui.TEXT, Ui.SERIF);
-            h.setSingleLine(true);
-            h.setEllipsize(TextUtils.TruncateAt.END);
-            h.setMaxWidth(Ui.px(300));
-            h.setGravity(Gravity.CENTER);
-            list.addView(h, new LinearLayout.LayoutParams(-1, -2));
-            if (sub != null) {
-                TextView s = Ui.text(this, sub, 19, Ui.SUB, Ui.SANS);
-                s.setGravity(Gravity.CENTER);
-                LinearLayout.LayoutParams sp = new LinearLayout.LayoutParams(-1, -2);
-                sp.topMargin = Ui.px(6);
-                list.addView(s, sp);
+    protected LinearLayout makeList(FrameLayout frameLayout, String str, String str2, int i) {
+        EdgeScrollView edgeScrollView = new EdgeScrollView(this);
+        LinearLayout linearLayout = new LinearLayout(this);
+        linearLayout.setOrientation(1);
+        linearLayout.setGravity(1);
+        linearLayout.setPadding(0, Ui.px(i), 0, Ui.px(120.0f));
+        if (str != null) {
+            TextView textViewText = Ui.text(this, str, 26.0f, -658195, "serif");
+            textViewText.setSingleLine(true);
+            textViewText.setEllipsize(TextUtils.TruncateAt.END);
+            textViewText.setMaxWidth(Ui.px(280.0f));
+            linearLayout.addView(textViewText, new LinearLayout.LayoutParams(-2, -2));
+            if (str2 != null) {
+                TextView textViewText2 = Ui.text(this, str2, 19.0f, -6514030, "sans-serif");
+                LinearLayout.LayoutParams layoutParams = new LinearLayout.LayoutParams(-2, -2);
+                layoutParams.topMargin = Ui.px(6.0f);
+                linearLayout.addView(textViewText2, layoutParams);
             }
-            View gap = new View(this);
-            list.addView(gap, new LinearLayout.LayoutParams(1, Ui.px(18)));
+            linearLayout.addView(new View(this), new LinearLayout.LayoutParams(1, Ui.px(18.0f)));
         }
-        sv.addView(list, new FrameLayout.LayoutParams(-1, -2));
-        parent.addView(sv, new FrameLayout.LayoutParams(-1, -1));
-        return list;
+        edgeScrollView.addView(linearLayout, new FrameLayout.LayoutParams(-1, -2));
+        frameLayout.addView(edgeScrollView, new FrameLayout.LayoutParams(-1, -1));
+        return linearLayout;
     }
 
-    /** Plain scrolling column (no per-row scaling) with soft top/bottom fade, for tall cards. */
-    protected LinearLayout makePlain(FrameLayout parent, int topPad) {
-        ScrollView sv = new ScrollView(this);
-        sv.setVerticalScrollBarEnabled(false);
-        sv.setOverScrollMode(View.OVER_SCROLL_NEVER);
-        sv.setVerticalFadingEdgeEnabled(true);
-        sv.setFadingEdgeLength(Ui.px(56));
-        LinearLayout list = new LinearLayout(this);
-        list.setOrientation(LinearLayout.VERTICAL);
-        list.setGravity(Gravity.CENTER_HORIZONTAL);
-        list.setPadding(0, Ui.px(topPad), 0, Ui.px(120));
-        sv.addView(list, new FrameLayout.LayoutParams(-1, -2));
-        parent.addView(sv, new FrameLayout.LayoutParams(-1, -1));
-        return list;
+    protected LinearLayout makePlain(FrameLayout frameLayout, int i) {
+        ScrollView scrollView = new ScrollView(this);
+        scrollView.setVerticalScrollBarEnabled(false);
+        scrollView.setOverScrollMode(2);
+        scrollView.setVerticalFadingEdgeEnabled(true);
+        scrollView.setFadingEdgeLength(Ui.px(56.0f));
+        LinearLayout linearLayout = new LinearLayout(this);
+        linearLayout.setOrientation(1);
+        linearLayout.setGravity(1);
+        linearLayout.setPadding(0, Ui.px(i), 0, Ui.px(120.0f));
+        scrollView.addView(linearLayout, new FrameLayout.LayoutParams(-1, -2));
+        frameLayout.addView(scrollView, new FrameLayout.LayoutParams(-1, -1));
+        return linearLayout;
     }
 
-    protected View label(String s) {
-        TextView t = Ui.text(this, s, 18, Ui.SUB, Ui.SANS_M);
-        t.setLetterSpacing(0.12f);
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(Ui.px(330), -2);
-        lp.topMargin = Ui.px(6);
-        lp.bottomMargin = Ui.px(10);
-        lp.leftMargin = Ui.px(10);
-        t.setLayoutParams(lp);
-        return t;
+    protected View label(String str) {
+        TextView textViewText = Ui.text(this, str, 18.0f, -6514030, "sans-serif-medium");
+        textViewText.setLetterSpacing(0.12f);
+        LinearLayout.LayoutParams layoutParams = new LinearLayout.LayoutParams(Ui.px(330.0f), -2);
+        layoutParams.topMargin = Ui.px(6.0f);
+        layoutParams.bottomMargin = Ui.px(10.0f);
+        layoutParams.leftMargin = Ui.px(10.0f);
+        textViewText.setLayoutParams(layoutParams);
+        return textViewText;
     }
 
-    protected View item(String title, String sub, int icon, boolean accent, View.OnClickListener click) {
-        return item(title, sub, icon, accent, false, click);
+    protected View item(String str, String str2, int i, boolean z, View.OnClickListener onClickListener) {
+        return item(str, str2, i, z, false, onClickListener);
     }
 
-    protected View item(String title, String sub, int icon, boolean accent, boolean checked,
-                        View.OnClickListener click) {
-        LinearLayout row = new LinearLayout(this);
-        row.setOrientation(LinearLayout.HORIZONTAL);
-        row.setGravity(Gravity.CENTER_VERTICAL);
-        row.setPadding(Ui.px(16), Ui.px(12), Ui.px(16), Ui.px(12));
-        row.setBackground(accent ? Ui.accent(28) : Ui.card(28));
-
-        IconView iv = new IconView(this, icon, accent ? Ui.INK : Ui.A1);
-        iv.setPadding(Ui.px(9), Ui.px(9), Ui.px(9), Ui.px(9));
-        iv.setBackground(Ui.circle(accent ? 0x26000000 : Ui.CHIP));
-        row.addView(iv, new LinearLayout.LayoutParams(Ui.px(42), Ui.px(42)));
-
-        LinearLayout c = new LinearLayout(this);
-        c.setOrientation(LinearLayout.VERTICAL);
-        c.setGravity(Gravity.CENTER_VERTICAL);
-        TextView t = Ui.text(this, title, 24, accent ? Ui.INK : Ui.TEXT, Ui.SERIF);
-        t.setSingleLine(true);
-        t.setEllipsize(TextUtils.TruncateAt.END);
-        c.addView(t);
-        if (sub != null) {
-            View sp = new View(this);
-            c.addView(sp, new LinearLayout.LayoutParams(1, Ui.px(2)));
-            TextView s = Ui.text(this, sub, 18, accent ? 0xB31F1E1D : Ui.SUB, Ui.SANS);
-            s.setSingleLine(true);
-            s.setEllipsize(TextUtils.TruncateAt.END);
-            c.addView(s);
+    protected View item(String str, String str2, int i, boolean z, boolean z2, View.OnClickListener onClickListener) {
+        LinearLayout linearLayout = new LinearLayout(this);
+        linearLayout.setOrientation(0);
+        linearLayout.setGravity(16);
+        linearLayout.setPadding(Ui.px(16.0f), Ui.px(12.0f), Ui.px(16.0f), Ui.px(12.0f));
+        linearLayout.setBackground(z ? Ui.accent(28.0f) : Ui.card(28.0f));
+        IconView iconView = new IconView(this, i, z ? -14737891 : -2525353);
+        iconView.setPadding(Ui.px(9.0f), Ui.px(9.0f), Ui.px(9.0f), Ui.px(9.0f));
+        iconView.setBackground(Ui.circle(z ? 637534208 : -13093325));
+        linearLayout.addView(iconView, new LinearLayout.LayoutParams(Ui.px(42.0f), Ui.px(42.0f)));
+        LinearLayout linearLayout2 = new LinearLayout(this);
+        linearLayout2.setOrientation(1);
+        linearLayout2.setGravity(16);
+        TextView textViewText = Ui.text(this, str, 24.0f, z ? -14737891 : -658195, "serif");
+        textViewText.setSingleLine(true);
+        textViewText.setEllipsize(TextUtils.TruncateAt.END);
+        linearLayout2.addView(textViewText);
+        if (str2 != null) {
+            linearLayout2.addView(new View(this), new LinearLayout.LayoutParams(1, Ui.px(2.0f)));
+            TextView textViewText2 = Ui.text(this, str2, 18.0f, z ? -1289806307 : -6514030, "sans-serif");
+            textViewText2.setSingleLine(true);
+            textViewText2.setEllipsize(TextUtils.TruncateAt.END);
+            linearLayout2.addView(textViewText2);
         }
-        LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(0, -2, 1f);
-        cp.leftMargin = Ui.px(12);
-        row.addView(c, cp);
-
-        if (checked) {
-            IconView ck = new IconView(this, IconView.CHECK, Ui.A1);
-            LinearLayout.LayoutParams kp = new LinearLayout.LayoutParams(Ui.px(24), Ui.px(24));
-            kp.leftMargin = Ui.px(8);
-            row.addView(ck, kp);
+        LinearLayout.LayoutParams layoutParams = new LinearLayout.LayoutParams(0, -2, 1.0f);
+        layoutParams.leftMargin = Ui.px(12.0f);
+        linearLayout.addView(linearLayout2, layoutParams);
+        if (z2) {
+            View iconView2 = new IconView(this, 10, -2525353);
+            LinearLayout.LayoutParams layoutParams2 = new LinearLayout.LayoutParams(Ui.px(24.0f), Ui.px(24.0f));
+            layoutParams2.leftMargin = Ui.px(8.0f);
+            linearLayout.addView(iconView2, layoutParams2);
         }
+        LinearLayout.LayoutParams layoutParams3 = new LinearLayout.LayoutParams(Ui.px(330.0f), -2);
+        layoutParams3.bottomMargin = Ui.px(10.0f);
+        linearLayout.setLayoutParams(layoutParams3);
+        linearLayout.setClickable(true);
+        linearLayout.setOnClickListener(onClickListener);
+        Ui.pressable(linearLayout);
+        return linearLayout;
+    }
 
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(Ui.px(330), -2);
-        lp.bottomMargin = Ui.px(10);
-        row.setLayoutParams(lp);
-        row.setClickable(true);
-        row.setOnClickListener(click);
-        Ui.pressable(row);
-        return row;
+    protected View empty(String str) {
+        TextView textViewText = Ui.text(this, str, 20.0f, -6514030, "sans-serif");
+        textViewText.setGravity(17);
+        LinearLayout.LayoutParams layoutParams = new LinearLayout.LayoutParams(Ui.px(330.0f), -2);
+        layoutParams.topMargin = Ui.px(24.0f);
+        textViewText.setLayoutParams(layoutParams);
+        return textViewText;
+    }
+
+    protected void closeOverlay() {
+        if (this.overlay != null) {
+            this.stage.removeView(this.overlay);
+            this.overlay = null;
+        }
+    }
+
+    @Override // site.liweike.watchai.BaseActivity
+    protected void handleBack() {
+        if (this.overlay == null) {
+            finish();
+        } else {
+            closeOverlay();
+        }
+    }
+
+    protected void confirm(String str, String str2, String str3, String str4, final Runnable runnable) {
+        closeOverlay();
+        this.overlay = new FrameLayout(this);
+        this.overlay.setBackgroundColor(-434892014);
+        this.overlay.setClickable(true);
+        this.overlay.setOnClickListener(new View.OnClickListener() { // from class: site.liweike.watchai.ListScreen.1
+            @Override // android.view.View.OnClickListener
+            public void onClick(View view) {
+                ListScreen.this.closeOverlay();
+            }
+        });
+        LinearLayout linearLayout = new LinearLayout(this);
+        linearLayout.setOrientation(1);
+        linearLayout.setGravity(1);
+        linearLayout.setPadding(Ui.px(20.0f), Ui.px(22.0f), Ui.px(20.0f), Ui.px(20.0f));
+        linearLayout.setBackground(Ui.card(34.0f));
+        linearLayout.setClickable(true);
+        TextView textViewText = Ui.text(this, str, 26.0f, -658195, "serif");
+        textViewText.setGravity(17);
+        linearLayout.addView(textViewText, new LinearLayout.LayoutParams(-1, -2));
+        TextView textViewText2 = Ui.text(this, str2, 20.0f, -658195, "sans-serif");
+        textViewText2.setGravity(17);
+        textViewText2.setMaxLines(2);
+        textViewText2.setEllipsize(TextUtils.TruncateAt.END);
+        LinearLayout.LayoutParams layoutParams = new LinearLayout.LayoutParams(-1, -2);
+        layoutParams.topMargin = Ui.px(8.0f);
+        linearLayout.addView(textViewText2, layoutParams);
+        TextView textViewText3 = Ui.text(this, str3, 17.0f, -6514030, "sans-serif");
+        textViewText3.setGravity(17);
+        textViewText3.setMaxLines(2);
+        LinearLayout.LayoutParams layoutParams2 = new LinearLayout.LayoutParams(-1, -2);
+        layoutParams2.topMargin = Ui.px(6.0f);
+        layoutParams2.bottomMargin = Ui.px(16.0f);
+        linearLayout.addView(textViewText3, layoutParams2);
+        LinearLayout linearLayout2 = new LinearLayout(this);
+        linearLayout2.setOrientation(0);
+        TextView textViewText4 = Ui.text(this, "取消", 22.0f, -658195, "sans-serif-medium");
+        textViewText4.setGravity(17);
+        textViewText4.setBackground(Ui.circle(-13093325));
+        GradientDrawable gradientDrawable = new GradientDrawable();
+        gradientDrawable.setColor(-13093325);
+        gradientDrawable.setCornerRadius(Ui.px(28.0f));
+        textViewText4.setBackground(gradientDrawable);
+        textViewText4.setClickable(true);
+        textViewText4.setOnClickListener(new View.OnClickListener() { // from class: site.liweike.watchai.ListScreen.2
+            @Override // android.view.View.OnClickListener
+            public void onClick(View view) {
+                ListScreen.this.closeOverlay();
+            }
+        });
+        Ui.pressable(textViewText4);
+        LinearLayout.LayoutParams layoutParams3 = new LinearLayout.LayoutParams(0, Ui.px(54.0f), 1.0f);
+        layoutParams3.rightMargin = Ui.px(6.0f);
+        linearLayout2.addView(textViewText4, layoutParams3);
+        TextView textViewText5 = Ui.text(this, str4, 22.0f, -14737891, "sans-serif-medium");
+        textViewText5.setGravity(17);
+        textViewText5.setBackground(Ui.accent(28.0f));
+        textViewText5.setClickable(true);
+        textViewText5.setOnClickListener(new View.OnClickListener() { // from class: site.liweike.watchai.ListScreen.3
+            @Override // android.view.View.OnClickListener
+            public void onClick(View view) {
+                ListScreen.this.closeOverlay();
+                runnable.run();
+            }
+        });
+        Ui.pressable(textViewText5);
+        LinearLayout.LayoutParams layoutParams4 = new LinearLayout.LayoutParams(0, Ui.px(54.0f), 1.0f);
+        layoutParams4.leftMargin = Ui.px(6.0f);
+        linearLayout2.addView(textViewText5, layoutParams4);
+        linearLayout.addView(linearLayout2, new LinearLayout.LayoutParams(-1, -2));
+        this.overlay.addView(linearLayout, Ui.fl(318.0f, -2.0f, 17, 0.0f, 0.0f));
+        this.stage.addView(this.overlay, new FrameLayout.LayoutParams(-1, -1));
+        this.overlay.setAlpha(0.0f);
+        this.overlay.animate().alpha(1.0f).setDuration(140L).start();
     }
 
     protected LinearLayout card() {
-        LinearLayout c = new LinearLayout(this);
-        c.setOrientation(LinearLayout.VERTICAL);
-        c.setPadding(Ui.px(18), Ui.px(16), Ui.px(18), Ui.px(8));
-        c.setBackground(Ui.card(28));
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(Ui.px(330), -2);
-        lp.bottomMargin = Ui.px(12);
-        c.setLayoutParams(lp);
-        return c;
+        LinearLayout linearLayout = new LinearLayout(this);
+        linearLayout.setOrientation(1);
+        linearLayout.setPadding(Ui.px(18.0f), Ui.px(16.0f), Ui.px(18.0f), Ui.px(8.0f));
+        linearLayout.setBackground(Ui.card(28.0f));
+        LinearLayout.LayoutParams layoutParams = new LinearLayout.LayoutParams(Ui.px(330.0f), -2);
+        layoutParams.bottomMargin = Ui.px(12.0f);
+        linearLayout.setLayoutParams(layoutParams);
+        return linearLayout;
     }
 
-    // ---------------------------------------------------------------- 确认浮层
-
-    /** 当前开着的确认浮层，同一时刻只允许一个。 */
-    private FrameLayout confirmLayer;
-
-    protected boolean confirmOpen() { return confirmLayer != null; }
-
-    protected void closeConfirm() {
-        if (confirmLayer == null) return;
-        stage.removeView(confirmLayer);
-        confirmLayer = null;
-    }
-
-    /**
-     * 一句确认再动手。
-     *
-     * 手表屏幕小、删除不可恢复，长按后直接执行太容易误触；这里给"取消/删除"
-     * 两个大按钮，点空白也等于取消。
-     */
-    protected void confirmDialog(String title, String subtitle, String warn, Runnable onOk) {
-        closeConfirm();
-        confirmLayer = new FrameLayout(this);
-        confirmLayer.setBackgroundColor(0xF21F1E1D);
-        confirmLayer.setClickable(true);
-        confirmLayer.setOnClickListener(v -> closeConfirm());
-        stage.addView(confirmLayer, new FrameLayout.LayoutParams(-1, -1));
-
-        LinearLayout box = new LinearLayout(this);
-        box.setOrientation(LinearLayout.VERTICAL);
-        box.setGravity(Gravity.CENTER_HORIZONTAL);
-        box.setBackground(Ui.card(30));
-        box.setPadding(Ui.px(22), Ui.px(20), Ui.px(22), Ui.px(18));
-
-        TextView t = Ui.text(this, title, 24, Ui.TEXT, Ui.SERIF);
-        t.setGravity(Gravity.CENTER);
-        box.addView(t);
-
-        if (subtitle != null) {
-            TextView name = Ui.text(this, subtitle, 20, Ui.SUB, Ui.SANS);
-            name.setGravity(Gravity.CENTER);
-            name.setMaxWidth(Ui.px(250));
-            LinearLayout.LayoutParams np = new LinearLayout.LayoutParams(-1, -2);
-            np.topMargin = Ui.px(10);
-            box.addView(name, np);
-        }
-
-        if (warn != null) {
-            TextView w = Ui.text(this, warn, 17, Ui.A1, Ui.SANS);
-            w.setGravity(Gravity.CENTER);
-            w.setMaxWidth(Ui.px(250));
-            LinearLayout.LayoutParams wp = new LinearLayout.LayoutParams(-1, -2);
-            wp.topMargin = Ui.px(8);
-            box.addView(w, wp);
-        }
-
-        LinearLayout buttons = new LinearLayout(this);
-        buttons.setOrientation(LinearLayout.HORIZONTAL);
-        buttons.setGravity(Gravity.CENTER);
-        LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(-1, -2);
-        bp.topMargin = Ui.px(18);
-        box.addView(buttons, bp);
-
-        View cancel = confirmButton("取消", false);
-        cancel.setOnClickListener(v -> closeConfirm());
-        buttons.addView(cancel);
-
-        View ok = confirmButton("删除", true);
-        ok.setOnClickListener(v -> {
-            closeConfirm();
-            if (onOk != null) onOk.run();
-        });
-        LinearLayout.LayoutParams okp = new LinearLayout.LayoutParams(-2, -2);
-        okp.leftMargin = Ui.px(12);
-        buttons.addView(ok, okp);
-
-        confirmLayer.addView(box, new FrameLayout.LayoutParams(Ui.px(300), -2, Gravity.CENTER));
-        Ui.rise(box, 0);
-    }
-
-    private View confirmButton(String text, boolean danger) {
-        TextView t = Ui.text(this, text, 21, danger ? 0xFFFFFFFF : Ui.TEXT, Ui.SANS_M);
-        t.setGravity(Gravity.CENTER);
-        t.setPadding(Ui.px(24), Ui.px(13), Ui.px(24), Ui.px(13));
-        GradientDrawable g = new GradientDrawable();
-        g.setCornerRadius(Ui.px(22));
-        if (danger) {
-            g.setColor(0xFFB4462F);
-        } else {
-            g.setColor(Ui.CHIP);
-            g.setStroke(Math.max(1, Ui.px(1)), Ui.STROKE);
-        }
-        t.setBackground(g);
-        t.setClickable(true);
-        Ui.pressable(t);
-        return t;
-    }
-
-    protected View kv(String k, String v, int keyW) {
-        LinearLayout r = new LinearLayout(this);
-        r.setOrientation(LinearLayout.HORIZONTAL);
-        r.setGravity(Gravity.CENTER_VERTICAL);
-        TextView kt = Ui.text(this, k, 19, Ui.SUB, Ui.SANS);
-        kt.setSingleLine(true);
-        kt.setEllipsize(TextUtils.TruncateAt.END);
-        r.addView(kt, new LinearLayout.LayoutParams(Ui.px(keyW), -2));
-        TextView vt = Ui.text(this, v, 21, Ui.TEXT, Ui.SANS);
-        vt.setSingleLine(true);
-        vt.setEllipsize(TextUtils.TruncateAt.END);
-        vt.setGravity(Gravity.END);
-        r.addView(vt, new LinearLayout.LayoutParams(0, -2, 1f));
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
-        lp.bottomMargin = Ui.px(10);
-        r.setLayoutParams(lp);
-        return r;
+    protected View kv(String str, String str2, int i) {
+        LinearLayout linearLayout = new LinearLayout(this);
+        linearLayout.setOrientation(0);
+        linearLayout.setGravity(16);
+        TextView textViewText = Ui.text(this, str, 19.0f, -6514030, "sans-serif");
+        textViewText.setSingleLine(true);
+        textViewText.setEllipsize(TextUtils.TruncateAt.END);
+        linearLayout.addView(textViewText, new LinearLayout.LayoutParams(Ui.px(i), -2));
+        TextView textViewText2 = Ui.text(this, str2, 21.0f, -658195, "sans-serif");
+        textViewText2.setSingleLine(true);
+        textViewText2.setEllipsize(TextUtils.TruncateAt.END);
+        textViewText2.setGravity(8388613);
+        linearLayout.addView(textViewText2, new LinearLayout.LayoutParams(0, -2, 1.0f));
+        LinearLayout.LayoutParams layoutParams = new LinearLayout.LayoutParams(-1, -2);
+        layoutParams.bottomMargin = Ui.px(10.0f);
+        linearLayout.setLayoutParams(layoutParams);
+        return linearLayout;
     }
 }

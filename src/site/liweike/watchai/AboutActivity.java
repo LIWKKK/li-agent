@@ -1,38 +1,41 @@
 package site.liweike.watchai;
 
-import android.view.Gravity;
 import android.view.View;
+import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
+/* JADX INFO: loaded from: classes.dex */
 public class AboutActivity extends BaseActivity {
-    @Override protected void build() {
-        LinearLayout c = new LinearLayout(this);
-        c.setOrientation(LinearLayout.VERTICAL);
-        c.setGravity(Gravity.CENTER);
-
-        IconView logo = new IconView(this, IconView.SPARKLE, Ui.A1);
-        c.addView(logo, new LinearLayout.LayoutParams(Ui.px(84), Ui.px(84)));
-        c.addView(space(18));
-        TextView name = Ui.text(this, "LI Agent", 42, Ui.TEXT, Ui.SERIF);
-        name.setGravity(Gravity.CENTER);
-        c.addView(name, new LinearLayout.LayoutParams(-1, -2));
-        c.addView(space(12));
-        TextView by = Ui.text(this, "本软件由 liweike 制作", 22, Ui.SUB, Ui.SANS);
-        by.setGravity(Gravity.CENTER);
-        c.addView(by, new LinearLayout.LayoutParams(-1, -2));
-        c.addView(space(8));
-        TextView ver = Ui.text(this, "v0.3", 18, 0xFF6F6D67, Ui.SANS);
-        ver.setGravity(Gravity.CENTER);
-        c.addView(ver, new LinearLayout.LayoutParams(-1, -2));
-
-        stage.addView(c, new android.widget.FrameLayout.LayoutParams(-1, -1));
-        Ui.rise(c, 0);
+    @Override // site.liweike.watchai.BaseActivity
+    protected void build() {
+        LinearLayout linearLayout = new LinearLayout(this);
+        linearLayout.setOrientation(1);
+        linearLayout.setGravity(17);
+        IconView iconView = new IconView(this, 11, -2525353);
+        LinearLayout.LayoutParams layoutParams = new LinearLayout.LayoutParams(Ui.px(76.0f), Ui.px(76.0f));
+        layoutParams.gravity = 1;
+        linearLayout.addView(iconView, layoutParams);
+        linearLayout.addView(space(20));
+        linearLayout.addView(line("LI Agent", 42.0f, -658195, "serif"));
+        linearLayout.addView(space(14));
+        linearLayout.addView(line("本软件由 liweike 制作", 22.0f, -6514030, "sans-serif"));
+        linearLayout.addView(space(10));
+        linearLayout.addView(line("v0.4", 18.0f, -9474713, "sans-serif"));
+        this.stage.addView(linearLayout, new FrameLayout.LayoutParams(-1, -1));
+        Ui.rise(linearLayout, 0);
     }
 
-    private View space(int h) {
-        View v = new View(this);
-        v.setLayoutParams(new LinearLayout.LayoutParams(1, Ui.px(h)));
-        return v;
+    private TextView line(String str, float f, int i, String str2) {
+        TextView textViewText = Ui.text(this, str, f, i, str2);
+        textViewText.setGravity(17);
+        textViewText.setLayoutParams(new LinearLayout.LayoutParams(-1, -2));
+        return textViewText;
+    }
+
+    private View space(int i) {
+        View view = new View(this);
+        view.setLayoutParams(new LinearLayout.LayoutParams(1, Ui.px(i)));
+        return view;
     }
 }

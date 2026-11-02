@@ -6,54 +6,30 @@ import android.view.View;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
-/** the coding agent entry: pick a workspace (real projects from the relay). */
 public class WorkspacesActivity extends ListScreen {
-    private Ticker ticker;
-    private boolean loading;
-    /** 项目列表可能变（新建/删除会话都会影响计数），每次刷新整体重建。 */
-    private boolean drawn;
-
-    @Override protected void build() {
-        startList("the coding agent", "选择工作区");
-        ticker = new Ticker(5_000, this::load);
+    @Override // site.liweike.watchai.BaseActivity
+    protected void build() {
+        render();
     }
 
-    @Override protected void onResume() {
-        super.onResume();
-        ticker.start();
-    }
-
-    @Override protected void onPause() {
-        super.onPause();
-        ticker.stop();
-    }
-
-    private void load() {
-        if (loading) return;
-        loading = true;
+    /* JADX INFO: Access modifiers changed from: private */
+    public void render() {
+        closeOverlay();
+        this.stage.removeAllViews();
+        startList("Harness", "选择工作区");
+        this.col.addView(label("工作区 · 来自电脑"));
         Net.get(this).apiCached(this, "/api/projects", (ok, value, error) -> {
-            loading = false;
             if (isFinishing() || isDestroyed()) return;
             if (!ok || value == null || !value.optBoolean("ok", false)) {
-                if (!drawn) {
-                    String reason = error == null || error.isEmpty() ? "连不上中继" : error;
-                    col.removeAllViews();
-                    col.addView(item(reason, null, IconView.INFO, false, v -> load()));
-                    drawn = true;
-                }
+                String reason = error == null || error.isEmpty() ? "连不上中继" : error;
+                this.col.addView(item(reason, null, 6, false, v -> render()));
                 return;
             }
             JSONArray projects = value.optJSONArray("projects");
-            // 首次进入或数量变化才重建；内容没变就不动，避免每 5 秒闪一下。
             int count = projects == null ? 0 : projects.length();
-            if (drawn && count == lastCount) return;
-            lastCount = count;
-            drawn = true;
-
-            col.removeAllViews();
-            col.addView(label("工作区"));
             if (count == 0) {
-                col.addView(item("还没有项目", "在电脑上开一个会话", IconView.FOLDER, false, null));
+                this.col.addView(empty("暂无工作区"));
+                this.col.addView(item("提示", "在电脑上开一个会话即可", 6, false, null));
                 return;
             }
             for (int i = 0; i < count; i++) {
@@ -64,19 +40,30 @@ public class WorkspacesActivity extends ListScreen {
                 int sessionCount = project.optInt("sessionCount", 0);
                 int running = project.optInt("running", 0);
                 String sub = sessionCount + " 个会话" + (running > 0 ? " · " + running + " 运行中" : "");
-                View row = item(name, sub, IconView.FOLDER, running > 0, new View.OnClickListener() {
-                    @Override public void onClick(View v) {
-                        Intent it = new Intent(WorkspacesActivity.this, ConversationsActivity.class);
-                        it.putExtra("workspace", name);
-                        it.putExtra("path", path);
-                        startActivity(it);
-                        overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out);
+                View viewItem = item(name, sub, 0, running > 0, new View.OnClickListener() {
+                    @Override public void onClick(View view) {
+                        Intent intent = new Intent(WorkspacesActivity.this, ConversationsActivity.class);
+                        intent.putExtra("workspace", name);
+                        intent.putExtra("path", path);
+                        WorkspacesActivity.this.startActivity(intent);
+                        WorkspacesActivity.this.overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out);
                     }
                 });
-                col.addView(row);
+                viewItem.setOnLongClickListener(new View.OnLongClickListener() {
+                    @Override public boolean onLongClick(View view) {
+                        view.performHapticFeedback(0);
+                        confirm("删除工作区？", name,
+                                "工作区由电脑端管理，手表上仅展示", "知道了", null);
+                        return true;
+                    }
+                });
+                this.col.addView(viewItem);
             }
         });
     }
 
-    private int lastCount = -1;
+    @Override // android.app.Activity
+    protected void onResume() {
+        super.onResume();
+    }
 }

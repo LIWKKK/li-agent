@@ -7,39 +7,50 @@ import android.graphics.Path;
 import android.graphics.RectF;
 import android.view.View;
 
-/** Horizontal rounded bar made of one or more colored segments. */
+/* JADX INFO: loaded from: classes.dex */
 class BarView extends View {
-    private final Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
-    private final Path clip = new Path();
-    private final RectF r = new RectF();
-    private float[] fr = new float[0];
-    private int[] col = new int[0];
+    private final Path clip;
+    private int[] col;
+    private float[] fr;
+    private final Paint p;
+    private final RectF r;
 
-    BarView(Context c) { super(c); }
+    BarView(Context context) {
+        super(context);
+        this.p = new Paint(1);
+        this.clip = new Path();
+        this.r = new RectF();
+        this.fr = new float[0];
+        this.col = new int[0];
+    }
 
-    BarView set(float[] fractions, int[] colors) {
-        fr = fractions;
-        col = colors;
+    BarView set(float[] fArr, int[] iArr) {
+        this.fr = fArr;
+        this.col = iArr;
         invalidate();
         return this;
     }
 
-    @Override protected void onDraw(Canvas cv) {
-        float w = getWidth(), h = getHeight();
-        r.set(0, 0, w, h);
-        p.setColor(Ui.CHIP);
-        cv.drawRoundRect(r, h / 2f, h / 2f, p);
-        clip.reset();
-        clip.addRoundRect(r, h / 2f, h / 2f, Path.Direction.CW);
-        cv.save();
-        cv.clipPath(clip);
-        float x = 0;
-        for (int i = 0; i < fr.length; i++) {
-            p.setColor(col[i]);
-            float x2 = x + fr[i] * w;
-            cv.drawRect(x, 0, x2, h, p);
-            x = x2;
+    @Override // android.view.View
+    protected void onDraw(Canvas canvas) {
+        float width = getWidth();
+        float height = getHeight();
+        this.r.set(0.0f, 0.0f, width, height);
+        this.p.setColor(-13093325);
+        canvas.drawRoundRect(this.r, height / 2.0f, height / 2.0f, this.p);
+        this.clip.reset();
+        this.clip.addRoundRect(this.r, height / 2.0f, height / 2.0f, Path.Direction.CW);
+        canvas.save();
+        canvas.clipPath(this.clip);
+        int i = 0;
+        float f = 0.0f;
+        while (i < this.fr.length) {
+            this.p.setColor(this.col[i]);
+            float f2 = f + (this.fr[i] * width);
+            canvas.drawRect(f, 0.0f, f2, height, this.p);
+            i++;
+            f = f2;
         }
-        cv.restore();
+        canvas.restore();
     }
 }

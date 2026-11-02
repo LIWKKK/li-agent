@@ -3,3 +3,4 @@ gen/
 debug.keystore
 *.apk
 !WatchAI.apk
+build-local.sh

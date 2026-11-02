@@ -6,302 +6,195 @@ import android.view.View;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
-/**
- * 对话列表。带 workspace 时是 Harness 项目下的会话，否则是 DeepSeek Chat 的历史。
- *
- * 两个页面行为都在这里：
- *   - 每 5 秒静默刷新，运行状态和标题不用退出重进
- *   - 长按一行弹出删除确认，确认后调中继 /api/delete
- *     （DSH 内核没有 session/delete，真正删除由 dsh-session-manager 插件完成）
- */
 public class ConversationsActivity extends ListScreen {
-    private boolean harness;
-    private String project = "";
-    private String projectPath = "";
+    private String chatTitle;
+    private boolean first = true;
+    private String scope;
+    private String workspace;
+    private String projectPath;
 
-    private Ticker ticker;
-    private boolean loading;
-    /** 上一次渲染的会话 id 拼接串；一样就不重画，避免每 5 秒闪一次。 */
-    private String renderedKey = "";
-
-    @Override protected void build() {
-        final String ws = getIntent().getStringExtra("workspace");
-        harness = ws != null;
-        project = harness ? ws : "";
-        projectPath = harness ? getIntent().getStringExtra("path") : "";
-        startList(harness ? ws : "DeepSeek Chat", harness ? "the coding agent" : "历史对话");
-
-        ticker = new Ticker(5_000, this::refresh);
+    @Override // site.liweike.watchai.BaseActivity
+    protected void build() {
+        this.workspace = getIntent().getStringExtra("workspace");
+        this.projectPath = getIntent().getStringExtra("path");
+        this.scope = this.workspace != null ? Store.wsScope(this.workspace) : "chat";
+        this.chatTitle = this.workspace != null ? this.workspace : "Chat";
+        render();
     }
 
-    @Override protected void onResume() {
+    @Override // android.app.Activity
+    protected void onResume() {
         super.onResume();
-        ticker.start();
+        if (!this.first) {
+            render();
+        } else {
+            this.first = false;
+        }
     }
 
-    @Override protected void onPause() {
-        super.onPause();
-        ticker.stop();
-        closeConfirm();
+    /* JADX INFO: Access modifiers changed from: private */
+    public void render() {
+        closeOverlay();
+        this.stage.removeAllViews();
+        startList(this.chatTitle, this.workspace != null ? "Harness" : "历史对话");
+        if (this.workspace != null) {
+            loadHarness();
+        } else {
+            renderLocal();
+        }
     }
 
-    @Override protected void handleBack() {
-        if (confirmOpen()) { closeConfirm(); return; }
-        super.handleBack();
-    }
+    // ---------- Harness：真实会话 ----------
 
-    // ---------------------------------------------------------------- 列表
-
-    private void refresh() {
-        if (loading) return;
-        loading = true;
-        if (harness) loadSessions(); else loadDsChats();
-    }
-
-    private void loadSessions() {
-        Net.get(this).apiCached(this, "/api/sessions?project=" + enc(project), (ok, value, error) -> {
-            loading = false;
+    private void loadHarness() {
+        this.col.addView(item("新建对话", null, 7, true, new View.OnClickListener() {
+            @Override public void onClick(View view) { createSession(); }
+        }));
+        this.col.addView(label("会话 · 长按可删除"));
+        Net.get(this).apiCached(this, "/api/sessions?project=" + enc(workspace), (ok, value, error) -> {
             if (isFinishing() || isDestroyed()) return;
             if (!ok || value == null || !value.optBoolean("ok", false)) {
-                if (renderedKey.isEmpty()) {
-                    render(null, error == null ? "读取失败" : error);
+                String reason = error == null || error.isEmpty() ? "读取失败" : error;
+                this.col.addView(item(reason, null, 6, false, v -> render()));
+                return;
+            }
+            JSONArray sessions = value.optJSONArray("sessions");
+            int count = sessions == null ? 0 : sessions.length();
+            for (int i = 0; i < count; i++) {
+                JSONObject s = sessions.optJSONObject(i);
+                if (s == null) continue;
+                final String id = s.optString("id", "");
+                final String title = s.optString("title", "未命名");
+                boolean running = s.optBoolean("running", false);
+                boolean waiting = s.optBoolean("waiting", false);
+                String sub = waiting ? "等待回答" : running ? "运行中" : "空闲";
+                String model = s.optString("model", "");
+                if (!model.isEmpty()) sub += " · " + model;
+                View viewItem = item(clip(title, 20), sub, 3, running, new View.OnClickListener() {
+                    @Override public void onClick(View view) { openChatReal(id, title); }
+                });
+                viewItem.setOnLongClickListener(new View.OnLongClickListener() {
+                    @Override public boolean onLongClick(View view) {
+                        view.performHapticFeedback(0);
+                        confirm("删除对话？", clip(title, 20),
+                                running || waiting ? "正在运行，删除会立即中断" : "删除后无法恢复",
+                                "删除", () -> deleteRemote(id));
+                        return true;
+                    }
+                });
+                this.col.addView(viewItem);
+            }
+            if (count == 0) this.col.addView(empty("暂无会话，点上面新建一个"));
+        });
+    }
+
+    // ---------- Chat：本地会话（壳原逻辑，Store 存储） ----------
+
+    private void renderLocal() {
+        this.col.addView(item("新建对话", null, 7, true, new View.OnClickListener() {
+            @Override public void onClick(View view) { newRealDsChat(); }
+        }));
+        this.col.addView(label("历史对话 · 长按可删除"));
+        java.util.List<String[]> listConvos = Store.convos(this, this.scope);
+        if (listConvos.isEmpty()) {
+            this.col.addView(empty("暂无历史对话"));
+        }
+        for (int i = 0; i < listConvos.size(); i++) {
+            final String str = listConvos.get(i)[0];
+            final String chatId = listConvos.get(i).length > 2 ? listConvos.get(i)[2] : "";
+            final int idx = i;
+            View viewItem = item(str, listConvos.get(i)[1], 3, false, new View.OnClickListener() {
+                @Override public void onClick(View view) { openChatById(chatId, str); }
+            });
+            viewItem.setOnLongClickListener(new View.OnLongClickListener() {
+                @Override public boolean onLongClick(View view) {
+                    view.performHapticFeedback(0);
+                    confirm("删除对话？", str, "删除后无法恢复", "删除", new Runnable() {
+                        @Override public void run() {
+                            Store.removeConvo(ConversationsActivity.this, ConversationsActivity.this.scope, idx);
+                            render();
+                        }
+                    });
+                    return true;
                 }
-                return;
-            }
-            render(value.optJSONArray("sessions"), null);
-        });
-    }
-
-    /** sessions 非空时渲染列表；为空且 error 非空时渲染错误行。 */
-    private void render(JSONArray sessions, String error) {
-        String key = keyOf(sessions, error);
-        if (key.equals(renderedKey)) return;
-        renderedKey = key;
-
-        col.removeAllViews();
-        if (!harness) {
-            col.addView(actionRow("新建对话", IconView.PLUS, new View.OnClickListener() {
-                @Override public void onClick(View v) { newDsChat(); }
-            }));
-            col.addView(label("历史对话"));
-        } else {
-            col.addView(actionRow("新建对话", IconView.PLUS, new View.OnClickListener() {
-                @Override public void onClick(View v) { createSession(projectPath); }
-            }));
-            col.addView(label("会话"));
-        }
-
-        if (error != null) {
-            col.addView(item(error, null, IconView.INFO, false, null));
-            return;
-        }
-        if (sessions == null || sessions.length() == 0) {
-            col.addView(item("还没有会话", "点上面新建一个", IconView.BUBBLE, false, null));
-            return;
-        }
-        for (int i = 0; i < sessions.length(); i++) {
-            JSONObject s = sessions.optJSONObject(i);
-            if (s == null) continue;
-            col.addView(sessionRow(s));
+            });
+            this.col.addView(viewItem);
         }
     }
 
-    private View sessionRow(JSONObject s) {
-        final String id = s.optString("id", "");
-        final String title = s.optString("title", "未命名");
-        final boolean running = s.optBoolean("running", false);
-        final boolean waiting = s.optBoolean("waiting", false);
-        String sub = waiting ? "等待回答" : running ? "运行中" : "空闲";
-        String model = s.optString("model", "");
-        if (!model.isEmpty()) sub += " · " + model;
+    // ---------- 打开与删除 ----------
 
-        View row = item(clip(title, 18), sub, IconView.BUBBLE, running,
-                v -> openHarnessChat(id, title));
-        Ui.longPress(row, () -> askDelete(id, title, running || waiting, true));
-        return row;
-    }
-
-    private void loadDsChats() {
-        Net.get(this).apiCached(this, "/api/ds/status", (ok, value, error) -> {
-            loading = false;
+    /** 新建真实 DeepSeek 会话：/api/ds/new 拿 chatId。 */
+    private void newRealDsChat() {
+        Net.get(this).apiPost("/api/ds/new", new JSONObject(), (ok, value, error) -> {
             if (isFinishing() || isDestroyed()) return;
-            boolean loggedIn = ok && value != null && value.optBoolean("loggedIn", false);
-            JSONArray chats = localChats();
-
-            // DeepSeek 会话只存在本地，网络只决定"离线"标记，key 里带上它。
-            String key = "ds:" + loggedIn + ":" + chats.toString();
-            if (key.equals(renderedKey)) return;
-            renderedKey = key;
-
-            col.removeAllViews();
-            col.addView(actionRow("新建对话", IconView.PLUS, new View.OnClickListener() {
-                @Override public void onClick(View v) { newDsChat(); }
-            }));
-            col.addView(label("历史对话"));
-
-            if (chats.length() == 0) {
-                col.addView(item(loggedIn ? "还没有对话" : "未登录 DeepSeek",
-                        loggedIn ? "点上面新建一个" : "在中继上粘贴 userToken",
-                        IconView.BUBBLE, false, null));
-                return;
-            }
-            for (int i = 0; i < chats.length(); i++) {
-                JSONObject c = chats.optJSONObject(i);
-                if (c == null) continue;
-                final String id = c.optString("id", "");
-                final String title = c.optString("title", "未命名");
-                View row = item(clip(title, 18), loggedIn ? "" : "离线", IconView.BUBBLE, false,
-                        v -> openDsChat(id, title));
-                // 本地记录直接删，不碰服务器。
-                Ui.longPress(row, () -> askDelete(id, title, false, false));
-                col.addView(row);
+            if (ok && value != null && value.optBoolean("ok", false)) {
+                String chatId = value.optString("chatId", "");
+                if (chatId.isEmpty()) { toast("创建失败"); return; }
+                String label = "新对话 · " + new java.text.SimpleDateFormat("HH:mm", java.util.Locale.US).format(new java.util.Date());
+                Store.addConvo(this, this.scope, label, chatId);
+                Intent it = new Intent(this, ChatActivity.class);
+                it.putExtra("mode", "ds");
+                it.putExtra("chatId", chatId);
+                it.putExtra("title", "Chat");
+                startActivity(it);
+                overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out);
+            } else {
+                toast(error == null || error.isEmpty() ? "创建失败（未登录？）" : error);
             }
         });
     }
 
-    private String keyOf(JSONArray sessions, String error) {
-        if (error != null) return "err:" + error;
-        if (sessions == null) return "empty";
-        StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < sessions.length(); i++) {
-            JSONObject s = sessions.optJSONObject(i);
-            if (s == null) continue;
-            sb.append(s.optString("id")).append('|')
-              .append(s.optString("title")).append('|')
-              .append(s.optBoolean("running")).append('|')
-              .append(s.optBoolean("waiting")).append(';');
+    /** 打开有真实 chatId 的本地历史对话。 */
+    private void openChatById(String chatId, String label) {
+        if (chatId == null || chatId.isEmpty()) {
+            toast("这条记录没有会话 ID，请删除后重新新建");
+            return;
         }
-        return sb.toString();
+        Intent it = new Intent(this, ChatActivity.class);
+        it.putExtra("mode", "ds");
+        it.putExtra("chatId", chatId);
+        it.putExtra("title", chatTitle);
+        it.putExtra("welcome", "已打开「" + label + "」。");
+        startActivity(it);
+        overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out);
     }
 
-    private View actionRow(String text, int icon, View.OnClickListener click) {
-        View row = item(text, null, icon, true, click);
-        return row;
+    private void openChatReal(String sessionId, String title) {
+        // Harness：真实会话
+        Intent intent = new Intent(this, (Class<?>) ChatActivity.class);
+        intent.putExtra("mode", "harness");
+        intent.putExtra("sessionId", sessionId);
+        intent.putExtra("title", title);
+        startActivity(intent);
+        overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out);
     }
 
-    // ---------------------------------------------------------------- 删除
-
-    /** 长按后先确认，再删。 */
-    private void askDelete(String id, String title, boolean active, boolean remote) {
-        confirmDialog("删除会话", clip(title, 20),
-                active ? "正在运行，删除会立即中断" : null,
-                () -> { if (remote) deleteRemote(id); else deleteLocal(id); });
+    /** 新建 Harness 会话（真实 /api/create）。 */
+    private void createSession() {
+        JSONObject body = new JSONObject();
+        try { if (projectPath != null && !projectPath.isEmpty()) body.put("projectPath", projectPath); } catch (Exception ignored) { }
+        Net.get(this).apiPost("/api/create", body, (ok, value, error) -> {
+            if (isFinishing() || isDestroyed()) return;
+            if (ok && value != null && value.optBoolean("ok", false)) {
+                String id = value.optString("sessionId", "");
+                if (!id.isEmpty()) openChatReal(id, "新对话");
+            } else {
+                toast(error == null || error.isEmpty() ? "创建失败" : error);
+            }
+        });
     }
 
-    private void deleteRemote(final String id) {
-        setBusyList(true);
+    private void deleteRemote(String id) {
         Net.get(this).deleteSession(id, (ok, value, error) -> {
-            setBusyList(false);
             if (isFinishing() || isDestroyed()) return;
             if (!ok || value == null || !value.optBoolean("ok", false)) {
                 toast(error == null || error.isEmpty() ? "删除失败" : error);
                 return;
             }
-            Cache.drop(this, "/api/sessions?project=" + enc(project));
-            renderedKey = "";
-            ticker.kick();
+            Cache.drop(this, "/api/sessions?project=" + enc(workspace));
+            render();
         });
-    }
-
-    private void deleteLocal(String id) {
-        JSONArray chats = localChats();
-        JSONArray kept = new JSONArray();
-        for (int i = 0; i < chats.length(); i++) {
-            JSONObject c = chats.optJSONObject(i);
-            if (c == null) continue;
-            if (id.equals(c.optString("id", ""))) continue;
-            kept.put(c);
-        }
-        prefs().edit().putString("ds_chats", kept.toString())
-                .remove("ds_msg_" + id).apply();
-        Cache.drop(this, "/api/ds/status");
-        renderedKey = "";
-        ticker.kick();
-    }
-
-    /** 删除进行中：标题换成提示，防止连点删两次。 */
-    private void setBusyList(boolean busy) {
-        if (busy) toast("删除中…");
-    }
-
-    // ---------------------------------------------------------------- 新建
-
-    private void createSession(String path) {
-        JSONObject body = new JSONObject();
-        try { if (path != null && !path.isEmpty()) body.put("projectPath", path); } catch (Exception ignored) { }
-        Net.get(this).apiPost("/api/create", body, (ok, value, error) -> {
-            if (isFinishing() || isDestroyed()) return;
-            if (ok && value != null && value.optBoolean("ok", false)) {
-                String id = value.optString("sessionId", "");
-                if (!id.isEmpty()) {
-                    renderedKey = "";
-                    openHarnessChat(id, "新对话");
-                }
-            } else {
-                toast(error);
-            }
-        });
-    }
-
-    private void newDsChat() {
-        Net.get(this).apiPost("/api/ds/new", new JSONObject(), (ok, value, error) -> {
-            if (isFinishing() || isDestroyed()) return;
-            if (ok && value != null && value.optBoolean("ok", false)) {
-                String id = value.optString("chatId", "");
-                if (id.isEmpty()) return;
-                rememberChat(id, "新对话");
-                renderedKey = "";
-                openDsChat(id, "新对话");
-            } else {
-                toast(error);
-            }
-        });
-    }
-
-    private JSONArray localChats() {
-        try { return new JSONArray(prefs().getString("ds_chats", "[]")); }
-        catch (Exception e) { return new JSONArray(); }
-    }
-
-    private void rememberChat(String id, String title) {
-        JSONArray chats = localChats();
-        for (int i = 0; i < chats.length(); i++) {
-            JSONObject c = chats.optJSONObject(i);
-            if (c != null && id.equals(c.optString("id", ""))) return;
-        }
-        try {
-            JSONObject c = new JSONObject();
-            c.put("id", id);
-            c.put("title", title);
-            chats.put(c);
-            prefs().edit().putString("ds_chats", chats.toString()).apply();
-        } catch (Exception ignored) { }
-    }
-
-    // ---------------------------------------------------------------- 跳转
-
-    private void openHarnessChat(String id, String title) {
-        Intent it = new Intent(this, ChatActivity.class);
-        it.putExtra("mode", "harness");
-        it.putExtra("sessionId", id);
-        it.putExtra("title", title);
-        startActivity(it);
-        overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out);
-    }
-
-    private void openDsChat(String id, String title) {
-        Intent it = new Intent(this, ChatActivity.class);
-        it.putExtra("mode", "ds");
-        it.putExtra("chatId", id);
-        it.putExtra("title", title);
-        startActivity(it);
-        overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out);
-    }
-
-    // ---------------------------------------------------------------- 工具
-
-    private android.content.SharedPreferences prefs() {
-        return getSharedPreferences("li", MODE_PRIVATE);
     }
 
     private void toast(String message) {

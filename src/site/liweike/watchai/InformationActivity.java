@@ -1,5 +1,6 @@
 package site.liweike.watchai;
 
+import android.graphics.drawable.GradientDrawable;
 import android.os.SystemClock;
 import android.text.TextUtils;
 import android.view.Gravity;
@@ -14,83 +15,47 @@ import org.json.JSONObject;
 
 import java.util.Locale;
 
-/** 电脑系统/硬件信息 + 模型 token 用量 + 热力图（数据来自中继 /api/live、/api/usage）。 */
-public class InformationActivity extends BaseActivity {
-    private LinearLayout col;
-    /** 数据区：每次刷新整体重建，避免旧卡片越堆越多。 */
-    private LinearLayout body;
+public class InformationActivity extends ListScreen {
     private TextView sub;
-    /** 实时区与用量区各自独立，刷新时只清自己那块，互不干扰。 */
     private LinearLayout liveBody;
     private LinearLayout usageBody;
     private Ticker ticker;
     private long usageAt;
 
-    @Override protected void build() {
-        ScrollView sv = new ScrollView(this);
-        sv.setVerticalScrollBarEnabled(false);
-        sv.setOverScrollMode(View.OVER_SCROLL_NEVER);
-        sv.setVerticalFadingEdgeEnabled(true);
-        sv.setFadingEdgeLength(Ui.px(56));
-        col = new LinearLayout(this);
-        col.setOrientation(LinearLayout.VERTICAL);
-        col.setGravity(Gravity.CENTER_HORIZONTAL);
-        col.setPadding(0, Ui.px(54), 0, Ui.px(120));
-        sv.addView(col, new FrameLayout.LayoutParams(-1, -2));
-        stage.addView(sv, new FrameLayout.LayoutParams(-1, -1));
-
-        TextView head = Ui.text(this, "information", 26, Ui.TEXT, Ui.SERIF);
-        head.setGravity(Gravity.CENTER);
-        head.setPadding(0, Ui.px(3), 0, Ui.px(3));
-        LinearLayout.LayoutParams hp = new LinearLayout.LayoutParams(Ui.px(330), -2);
-        hp.gravity = Gravity.CENTER_HORIZONTAL;
-        col.addView(head, hp);
-        sub = Ui.text(this, "读取中…", 19, Ui.SUB, Ui.SANS);
-        LinearLayout.LayoutParams sp = new LinearLayout.LayoutParams(-2, -2);
-        sp.topMargin = Ui.px(6);
-        sp.bottomMargin = Ui.px(20);
-        col.addView(sub, sp);
-
-        liveBody = column();
-        usageBody = column();
-
-        // 实时 15 秒一刷；用量在中继侧有 60 秒缓存，跟着刷就是白发请求。
+    @Override // site.liweike.watchai.BaseActivity
+    protected void build() {
+        ScrollView scrollView = new ScrollView(this);
+        scrollView.setVerticalScrollBarEnabled(false);
+        scrollView.setOverScrollMode(2);
+        scrollView.setVerticalFadingEdgeEnabled(true);
+        scrollView.setFadingEdgeLength(Ui.px(56.0f));
+        this.col = new LinearLayout(this);
+        this.col.setOrientation(1);
+        this.col.setGravity(1);
+        this.col.setPadding(0, Ui.px(54.0f), 0, Ui.px(120.0f));
+        scrollView.addView(this.col, new FrameLayout.LayoutParams(-1, -2));
+        this.stage.addView(scrollView, new FrameLayout.LayoutParams(-1, -1));
+        // 标题：占满整行宽 + 文字居中。col 是 wrap_content 的，wrap 标题会跟着
+        // 内容宽走，在圆形屏幕上视觉偏移；撑满行宽后文字才真正落在屏幕中轴。
+        TextView infoTitle = Ui.text(this, "info", 26.0f, Ui.TEXT, "serif");
+        infoTitle.setGravity(Gravity.CENTER);
+        this.col.addView(infoTitle, new LinearLayout.LayoutParams(-1, -2));
+        this.sub = Ui.text(this, "运行电脑 · 读取中", 19.0f, Ui.SUB, "sans-serif");
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, -2);
+        lp.topMargin = Ui.px(6.0f);
+        lp.bottomMargin = Ui.px(20.0f);
+        this.col.addView(this.sub, lp);
+        this.liveBody = column();
+        this.usageBody = column();
         ticker = new Ticker(15_000, this::refresh);
     }
 
     private LinearLayout column() {
         LinearLayout c = new LinearLayout(this);
-        c.setOrientation(LinearLayout.VERTICAL);
-        c.setGravity(Gravity.CENTER_HORIZONTAL);
-        col.addView(c, new LinearLayout.LayoutParams(-1, -2));
+        c.setOrientation(1);
+        c.setGravity(1);
+        this.col.addView(c, new FrameLayout.LayoutParams(-1, -2));
         return c;
-    }
-
-    /** 拉一次实时数据并重绘。离开页面时由 onPause 停掉。 */
-    private void refresh() {
-        Net.get(this).apiCached(this, "/api/live", (ok, value, error) -> {
-            if (isFinishing() || isDestroyed()) return;
-            if (!ok || value == null || !value.optBoolean("ok", false)) {
-                // 只在还没画出任何东西时提示失败，别把已有内容擦掉。
-                if (liveBody.getChildCount() == 0) {
-                    sub.setText(error == null ? "连不上中继" : error);
-                }
-                return;
-            }
-            sub.setText("实时 · 15 秒刷新");
-            liveBody.removeAllViews();
-            renderLive(value);
-
-            if (SystemClock.elapsedRealtime() - usageAt > 60_000) {
-                usageAt = SystemClock.elapsedRealtime();
-                Net.get(this).apiCached(this, "/api/usage?days=7300", (ok2, v2, e2) -> {
-                    if (isFinishing() || isDestroyed()) return;
-                    if (!ok2 || v2 == null || !v2.optBoolean("known", false)) return;
-                    usageBody.removeAllViews();
-                    renderUsage(v2);
-                });
-            }
-        });
     }
 
     @Override protected void onResume() {
@@ -103,62 +68,78 @@ public class InformationActivity extends BaseActivity {
         ticker.stop();
     }
 
+    private void refresh() {
+        Net.get(this).apiCached(this, "/api/live", (ok, value, error) -> {
+            if (isFinishing() || isDestroyed()) return;
+            if (!ok || value == null || !value.optBoolean("ok", false)) {
+                if (liveBody.getChildCount() == 0) {
+                    sub.setText(error == null || error.isEmpty() ? "连不上中继" : error);
+                }
+                return;
+            }
+            sub.setText("运行电脑 · 实时");
+            liveBody.removeAllViews();
+            renderLive(value);
+            if (SystemClock.elapsedRealtime() - usageAt > 60_000) {
+                usageAt = SystemClock.elapsedRealtime();
+                Net.get(this).apiCached(this, "/api/usage?days=7300", (ok2, v2, e2) -> {
+                    if (isFinishing() || isDestroyed()) return;
+                    if (!ok2 || v2 == null || !v2.optBoolean("known", false)) return;
+                    usageBody.removeAllViews();
+                    renderUsage(v2);
+                });
+            }
+        });
+    }
+
+    // ---------- 实时数据（结构沿用壳：系统/硬件/磁盘 卡片） ----------
+
     private void renderLive(JSONObject value) {
         JSONObject host = value.optJSONObject("host");
-        JSONObject mem = host == null ? null : host.optJSONObject("mem");
         JSONObject dsh = value.optJSONObject("dsh");
+        if (host == null) return;
+        this.col = liveBody;
+        this.col.addView(label("系统"));
+        LinearLayout sys = card();
+        sys.addView(kv("系统", str(host, "platform") + " " + str(host, "release"), 80));
+        sys.addView(kv("内核", str(host, "arch"), 80));
+        sys.addView(kv("主机", str(host, "hostname"), 80));
+        long up = host.optLong("uptimeSec");
+        if (up > 0) sys.addView(kv("运行", duration(up), 80));
+        this.col.addView(sys);
 
-        if (host != null) {
-            liveBody.addView(label("系统"));
-            LinearLayout sys = card();
-            sys.addView(kv("主机", str(host, "hostname"), 80));
-            sys.addView(kv("平台", str(host, "platform") + " " + str(host, "release"), 80));
-            sys.addView(kv("架构", str(host, "arch"), 80));
-            long up = host.optLong("uptimeSec");
-            if (up > 0) sys.addView(kv("运行", duration(up), 80));
-            liveBody.addView(sys);
+        this.col.addView(label("硬件"));
+        JSONObject mem = host.optJSONObject("mem");
+        LinearLayout hw = card();
+        int load = host.optInt("loadPct");
+        String cpu = str(host, "cpuModel");
+        hw.addView(metric("CPU", load + "%", cpu, load / 100f));
+        if (mem != null && mem.optLong("total") > 0) {
+            hw.addView(metric("内存", bytes(mem.optLong("used")) + " / " + bytes(mem.optLong("total")), null,
+                    (float) mem.optLong("used") / mem.optLong("total")));
+        }
+        if (host.has("tempC")) {
+            hw.addView(metric("温度", host.optDouble("tempC") + "°C", null, (float) (host.optDouble("tempC") / 100.0)));
+        }
+        this.col.addView(hw);
 
-            liveBody.addView(label("硬件"));
-            LinearLayout hw = card();
-            int load = host.optInt("loadPct");
-            // 只到系列，不暴露具体型号与核数。
-            String cpu = str(host, "cpuModel");
-            hw.addView(metric("CPU", load + "%", cpu.isEmpty() ? "Intel Core i7" : cpu, load / 100f));
-            if (mem != null) {
-                hw.addView(metric("内存", bytes(mem.optLong("used")) + " / " + bytes(mem.optLong("total")),
-                        null, mem.optLong("total") > 0 ? (float) mem.optLong("used") / mem.optLong("total") : 0f));
+        JSONArray disks = host.optJSONArray("disks");
+        if (disks != null && disks.length() > 0) {
+            this.col.addView(label("磁盘"));
+            LinearLayout dc = card();
+            for (int i = 0; i < disks.length(); i++) {
+                JSONObject d = disks.optJSONObject(i);
+                if (d == null) continue;
+                long total = d.optLong("total");
+                if (total <= 0) continue;
+                dc.addView(metric(str(d, "mount"), d.optInt("usedPct") + "%",
+                        bytes(d.optLong("used")) + " / " + bytes(total), (float) d.optLong("used") / total));
             }
-            JSONObject swap = host.optJSONObject("swap");
-            if (swap != null && swap.optLong("total") > 0) {
-                hw.addView(metric("Swap", bytes(swap.optLong("used")) + " / " + bytes(swap.optLong("total")),
-                        null, (float) swap.optLong("used") / swap.optLong("total")));
-            }
-            if (host.has("tempC")) {
-                hw.addView(kv("温度", host.optDouble("tempC") + " ℃", 80));
-            }
-            if (host.optLong("processes") > 0) {
-                hw.addView(kv("进程", String.valueOf(host.optLong("processes")), 80));
-            }
-            liveBody.addView(hw);
-
-            JSONArray disks = host.optJSONArray("disks");
-            if (disks != null && disks.length() > 0) {
-                liveBody.addView(label("磁盘"));
-                LinearLayout dc = card();
-                for (int i = 0; i < disks.length(); i++) {
-                    JSONObject d = disks.optJSONObject(i);
-                    if (d == null) continue;
-                    long total = d.optLong("total");
-                    dc.addView(metric(str(d, "mount"), d.optInt("usedPct") + "%",
-                            bytes(d.optLong("used")) + " / " + bytes(total),
-                            total > 0 ? (float) d.optLong("used") / total : 0f));
-                }
-                liveBody.addView(dc);
-            }
+            this.col.addView(dc);
         }
 
         if (dsh != null) {
-            liveBody.addView(label("DSH"));
+            this.col.addView(label("Harness"));
             LinearLayout c = card();
             boolean authOk = dsh.optBoolean("authOk", false);
             c.addView(kv("连接", authOk ? "正常 · " + dsh.optInt("latencyMs") + "ms" : "不可用", 80));
@@ -168,19 +149,19 @@ public class InformationActivity extends BaseActivity {
                 c.addView(kv("待答", String.valueOf(stats.optInt("waiting")), 80));
                 c.addView(kv("子任务", String.valueOf(stats.optInt("subagents")), 80));
             }
-            liveBody.addView(c);
+            this.col.addView(c);
         }
+        this.col = usageBody;
     }
+
+    // ---------- 用量（结构沿用壳：总量 + BarView + 热力图） ----------
 
     private void renderUsage(JSONObject value) {
         JSONArray days = value.optJSONArray("days");
         if (days == null || days.length() == 0) return;
-
-        // 中继直接给汇总，不用再把日明细加起来。
         long total = value.optLong("totalTokens", 0);
         long input = value.optLong("inputTokens", 0);
         long output = value.optLong("outputTokens", 0);
-        long cacheRead = value.optLong("cacheReadTokens", 0);
         long peak = 0;
         long today = 0;
         for (int i = 0; i < days.length(); i++) {
@@ -191,200 +172,135 @@ public class InformationActivity extends BaseActivity {
             if (i == days.length() - 1) today = t;
         }
 
-        usageBody.addView(label("模型 TOKEN 用量"));
-        LinearLayout tk = card();
-        tk.addView(Ui.text(this, shortTokens(total), 44, Ui.TEXT, Ui.SERIF));
-        TextView cap = Ui.text(this, "全部", 19, Ui.SUB, Ui.SANS);
-        LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(-2, -2);
-        cp.topMargin = Ui.px(4);
-        cp.bottomMargin = Ui.px(12);
-        tk.addView(cap, cp);
-        // 两段：本机 / 其他，直观看出外部占大头。
-        long localPart = value.optLong("localTokens", total);
-        float fLocal = total > 0 ? (float) localPart / total : 1f;
-        float fOther = Math.max(0f, 1f - fLocal);
-        BarView split = new BarView(this).set(new float[]{fLocal, fOther},
-                new int[]{Ui.A1, Ui.A2});
-        LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(-1, Ui.px(10));
-        bp.bottomMargin = Ui.px(12);
-        tk.addView(split, bp);
-        long local = value.optLong("localTokens", 0);
-        long external = value.optLong("externalTokens", 0);
-        if (external > 0) {
-            tk.addView(kv("本机", shortTokens(local), 150));
-            tk.addView(kv("其他", shortTokens(external), 150));
+        this.col = usageBody;
+        this.col.addView(label("模型 TOKEN 用量"));
+        LinearLayout c3 = card();
+        c3.addView(Ui.text(this, shortTokens(total), 44.0f, Ui.TEXT, "serif"));
+        TextView cap = Ui.text(this, "全部总量", 19.0f, Ui.SUB, "sans-serif");
+        LinearLayout.LayoutParams lp2 = new LinearLayout.LayoutParams(-2, -2);
+        lp2.topMargin = Ui.px(4.0f);
+        lp2.bottomMargin = Ui.px(12.0f);
+        c3.addView(cap, lp2);
+        long in2 = input, out2 = output;
+        float fIn = total > 0 ? (float) in2 / total : 0f;
+        BarView bar = new BarView(this).set(new float[]{fIn, Math.max(0f, 1f - fIn)}, new int[]{Ui.A1, Ui.A2});
+        LinearLayout.LayoutParams lp3 = new LinearLayout.LayoutParams(-1, Ui.px(10.0f));
+        lp3.bottomMargin = Ui.px(12.0f);
+        c3.addView(bar, lp3);
+        c3.addView(heatLegend());
+        c3.addView(kv("输入", shortTokens(input), 150));
+        c3.addView(kv("输出", shortTokens(output), 150));
+        c3.addView(kv("今日", shortTokens(today), 150));
+        this.col.addView(c3);
+
+        this.col = liveBody;
+    }
+
+
+    private View metric(String str, String str2, String str3, float f) {
+        LinearLayout linearLayout = new LinearLayout(this);
+        linearLayout.setOrientation(1);
+        LinearLayout linearLayout2 = new LinearLayout(this);
+        linearLayout2.setOrientation(0);
+        linearLayout2.addView(Ui.text(this, str, 19.0f, -6514030, "sans-serif"), new LinearLayout.LayoutParams(Ui.px(70.0f), -2));
+        TextView textViewText = Ui.text(this, str2, 21.0f, -658195, "sans-serif");
+        textViewText.setGravity(8388613);
+        textViewText.setSingleLine(true);
+        linearLayout2.addView(textViewText, new LinearLayout.LayoutParams(0, -2, 1.0f));
+        linearLayout.addView(linearLayout2, new LinearLayout.LayoutParams(-1, -2));
+        if (str3 != null) {
+            TextView textViewText2 = Ui.text(this, str3, 17.0f, -6514030, "sans-serif");
+            textViewText2.setSingleLine(true);
+            textViewText2.setEllipsize(TextUtils.TruncateAt.END);
+            LinearLayout.LayoutParams layoutParams = new LinearLayout.LayoutParams(-1, -2);
+            layoutParams.topMargin = Ui.px(4.0f);
+            linearLayout.addView(textViewText2, layoutParams);
         }
-        tk.addView(kv("输入", shortTokens(input), 150));
-        tk.addView(kv("输出", shortTokens(output), 150));
-        tk.addView(kv("缓存读", shortTokens(cacheRead), 150));
-        tk.addView(kv("今日", shortTokens(today), 150));
-        usageBody.addView(tk);
-
-        usageBody.addView(label("热力图"));
-        LinearLayout hm = card();
-        int weeks = Math.max(1, Math.min(53, (days.length() + 6) / 7));
-        TextView hc = Ui.text(this, "每日 token · " + days.length() + " 天", 18, Ui.SUB, Ui.SANS);
-        LinearLayout.LayoutParams hcp = new LinearLayout.LayoutParams(-2, -2);
-        hcp.bottomMargin = Ui.px(12);
-        hm.addView(hc, hcp);
-        // 天数少时格子会被拉得很宽，高度按行数收一点，看着不空。
-        int heatHeight = Math.max(60, Math.min(170, weeks * 40));
-        hm.addView(new HeatmapView(this, weeks, buildHeat(days, peak)),
-                new LinearLayout.LayoutParams(-1, Ui.px(heatHeight)));
-        hm.addView(heatLegend());
-        usageBody.addView(hm);
+        View view = new BarView(this).set(new float[]{f}, new int[]{-2525353});
+        LinearLayout.LayoutParams layoutParams2 = new LinearLayout.LayoutParams(-1, Ui.px(8.0f));
+        layoutParams2.topMargin = Ui.px(8.0f);
+        linearLayout.addView(view, layoutParams2);
+        LinearLayout.LayoutParams layoutParams3 = new LinearLayout.LayoutParams(-1, -2);
+        layoutParams3.bottomMargin = Ui.px(14.0f);
+        linearLayout.setLayoutParams(layoutParams3);
+        return linearLayout;
     }
 
-    /** 把日用量转成 weeks×7 的 0..4 档热力格。 */
-    private int[][] buildHeat(JSONArray days, long peak) {
-        int weeks = Math.max(1, Math.min(53, (days.length() + 6) / 7));
-        int[][] grid = new int[weeks][7];
-        // 数据靠右对齐（最新的一天在最后一格），前面空着表示没数据。
-        int offset = weeks * 7 - days.length();
-        for (int i = 0; i < days.length(); i++) {
-            JSONObject d = days.optJSONObject(i);
-            // 中继的日明细字段是 tokens（不是 totalTokens）。
-            long t = d == null ? 0 : d.optLong("tokens");
-            if (t <= 0) continue;
-            int level = peak <= 0 ? 0 : 1 + (int) Math.min(3L, t * 4L / peak);
-            int slot = offset + i;
-            if (slot < 0 || slot >= weeks * 7) continue;
-            grid[slot / 7][slot % 7] = level;
-        }
-        return grid;
+    private View legend() {
+        LinearLayout linearLayout = new LinearLayout(this);
+        linearLayout.setOrientation(0);
+        linearLayout.addView(dot(-2525353));
+        linearLayout.addView(Ui.text(this, "输入 0.86M", 18.0f, -6514030, "sans-serif"));
+        linearLayout.addView(new View(this), new LinearLayout.LayoutParams(Ui.px(18.0f), 1));
+        linearLayout.addView(dot(-1514280));
+        linearLayout.addView(Ui.text(this, "输出 0.38M", 18.0f, -6514030, "sans-serif"));
+        LinearLayout.LayoutParams layoutParams = new LinearLayout.LayoutParams(-2, -2);
+        layoutParams.bottomMargin = Ui.px(14.0f);
+        linearLayout.setLayoutParams(layoutParams);
+        linearLayout.setGravity(16);
+        return linearLayout;
     }
 
-    // ---------------------------------------------------------------- 组件
-
-    private View label(String s) {
-        TextView t = Ui.text(this, s, 18, Ui.SUB, Ui.SANS_M);
-        t.setLetterSpacing(0.12f);
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(Ui.px(330), -2);
-        lp.topMargin = Ui.px(6);
-        lp.bottomMargin = Ui.px(10);
-        lp.leftMargin = Ui.px(10);
-        t.setLayoutParams(lp);
-        return t;
+    private static String str(JSONObject o, String k) {
+        String v = o.optString(k, "");
+        return v.isEmpty() ? "—" : v;
     }
 
-    private LinearLayout card() {
-        LinearLayout c = new LinearLayout(this);
-        c.setOrientation(LinearLayout.VERTICAL);
-        c.setPadding(Ui.px(18), Ui.px(16), Ui.px(18), Ui.px(8));
-        c.setBackground(Ui.card(28));
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(Ui.px(330), -2);
-        lp.bottomMargin = Ui.px(12);
-        c.setLayoutParams(lp);
-        return c;
-    }
-
-    private View kv(String k, String v, int keyW) {
-        LinearLayout r = new LinearLayout(this);
-        r.setOrientation(LinearLayout.HORIZONTAL);
-        r.setGravity(Gravity.CENTER_VERTICAL);
-        TextView kt = Ui.text(this, k, 19, Ui.SUB, Ui.SANS);
-        kt.setSingleLine(true);
-        kt.setEllipsize(TextUtils.TruncateAt.END);
-        r.addView(kt, new LinearLayout.LayoutParams(Ui.px(keyW), -2));
-        TextView vt = Ui.text(this, v, 21, Ui.TEXT, Ui.SANS);
-        vt.setSingleLine(true);
-        vt.setEllipsize(TextUtils.TruncateAt.END);
-        vt.setGravity(Gravity.END);
-        r.addView(vt, new LinearLayout.LayoutParams(0, -2, 1f));
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
-        lp.bottomMargin = Ui.px(10);
-        r.setLayoutParams(lp);
-        return r;
-    }
-
-    private View metric(String label, String value, String detail, float frac) {
-        LinearLayout m = new LinearLayout(this);
-        m.setOrientation(LinearLayout.VERTICAL);
-        LinearLayout top = new LinearLayout(this);
-        top.setOrientation(LinearLayout.HORIZONTAL);
-        top.addView(Ui.text(this, label, 19, Ui.SUB, Ui.SANS), new LinearLayout.LayoutParams(Ui.px(70), -2));
-        TextView vt = Ui.text(this, value, 21, Ui.TEXT, Ui.SANS);
-        vt.setGravity(Gravity.END);
-        vt.setSingleLine(true);
-        top.addView(vt, new LinearLayout.LayoutParams(0, -2, 1f));
-        m.addView(top, new LinearLayout.LayoutParams(-1, -2));
-        if (detail != null && !detail.isEmpty()) {
-            TextView d = Ui.text(this, detail, 17, Ui.SUB, Ui.SANS);
-            d.setSingleLine(true);
-            d.setEllipsize(TextUtils.TruncateAt.END);
-            LinearLayout.LayoutParams dp = new LinearLayout.LayoutParams(-1, -2);
-            dp.topMargin = Ui.px(4);
-            m.addView(d, dp);
-        }
-        BarView b = new BarView(this).set(new float[]{Math.max(0f, Math.min(1f, frac))}, new int[]{Ui.A1});
-        LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(-1, Ui.px(8));
-        bp.topMargin = Ui.px(8);
-        m.addView(b, bp);
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
-        lp.bottomMargin = Ui.px(14);
-        m.setLayoutParams(lp);
-        return m;
-    }
-
-    private View heatLegend() {
-        LinearLayout l = new LinearLayout(this);
-        l.setOrientation(LinearLayout.HORIZONTAL);
-        l.setGravity(Gravity.CENTER_VERTICAL | Gravity.END);
-        TextView a = Ui.text(this, "少", 17, Ui.SUB, Ui.SANS);
-        LinearLayout.LayoutParams ap = new LinearLayout.LayoutParams(-2, -2);
-        ap.rightMargin = Ui.px(6);
-        l.addView(a, ap);
-        for (int i = 0; i < HeatmapView.LEVELS.length; i++) {
-            View c = new View(this);
-            android.graphics.drawable.GradientDrawable g = new android.graphics.drawable.GradientDrawable();
-            g.setColor(HeatmapView.LEVELS[i]);
-            g.setCornerRadius(Ui.px(4));
-            c.setBackground(g);
-            LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(Ui.px(16), Ui.px(16));
-            cp.rightMargin = Ui.px(4);
-            l.addView(c, cp);
-        }
-        TextView b = Ui.text(this, "多", 17, Ui.SUB, Ui.SANS);
-        LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(-2, -2);
-        bp.leftMargin = Ui.px(4);
-        l.addView(b, bp);
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
-        lp.topMargin = Ui.px(12);
-        lp.bottomMargin = Ui.px(8);
-        l.setLayoutParams(lp);
-        return l;
-    }
-
-    // ---------------------------------------------------------------- 工具
-
-    static String str(JSONObject o, String k) {
-        String v = o == null ? "" : o.optString(k, "");
-        return v == null ? "" : v;
-    }
-
-    static String bytes(long v) {
-        if (v <= 0) return "—";
-        double gb = v / 1073741824.0;
-        if (gb >= 1.0) return String.format(Locale.US, "%.1fG", gb);
-        return String.format(Locale.US, "%.0fM", v / 1048576.0);
-    }
-
-    static String shortTokens(long v) {
-        if (v >= 1_000_000_000L) return String.format(Locale.US, "%.2fB", v / 1_000_000_000.0);
-        if (v >= 1_000_000L) return String.format(Locale.US, "%.1fM", v / 1_000_000.0);
-        if (v >= 1_000L) return String.format(Locale.US, "%.1fK", v / 1_000.0);
-        return String.valueOf(v);
-    }
-
-    static String duration(long sec) {
+    private static String duration(long sec) {
         long d = sec / 86400, h = (sec % 86400) / 3600, m = (sec % 3600) / 60;
         if (d > 0) return d + " 天 " + h + " 时";
         if (h > 0) return h + " 时 " + m + " 分";
         return m + " 分";
     }
 
-    static String shorten(String s, int n) {
-        String v = s == null ? "" : s.trim();
-        return v.length() <= n ? v : v.substring(0, n) + "…";
+    private static String bytes(long b) {
+        if (b >= 1L << 30) return String.format(Locale.US, "%.1f GB", b / 1073741824f);
+        if (b >= 1L << 20) return String.format(Locale.US, "%.0f MB", b / 1048576f);
+        return String.format(Locale.US, "%.0f KB", b / 1024f);
+    }
+
+    static String shortTokens(long n) {
+        if (n >= 1_000_000L) return String.format(Locale.US, "%.2fM", n / 1000000f);
+        if (n >= 1_000L) return String.format(Locale.US, "%.1fK", n / 1000f);
+        return String.valueOf(n);
+    }
+
+    private View dot(int i) {
+        View view = new View(this);
+        view.setBackground(Ui.circle(i));
+        LinearLayout.LayoutParams layoutParams = new LinearLayout.LayoutParams(Ui.px(10.0f), Ui.px(10.0f));
+        layoutParams.rightMargin = Ui.px(7.0f);
+        view.setLayoutParams(layoutParams);
+        return view;
+    }
+
+    private View heatLegend() {
+        LinearLayout linearLayout = new LinearLayout(this);
+        linearLayout.setOrientation(0);
+        linearLayout.setGravity(8388629);
+        TextView textViewText = Ui.text(this, "少", 17.0f, -6514030, "sans-serif");
+        LinearLayout.LayoutParams layoutParams = new LinearLayout.LayoutParams(-2, -2);
+        layoutParams.rightMargin = Ui.px(6.0f);
+        linearLayout.addView(textViewText, layoutParams);
+        int[] legendColors = {0xFF353330, 0xFF5C3B30, 0xFF8A4A37, 0xFFB85F43, 0xFFD97757};
+        for (int i = 0; i < legendColors.length; i++) {
+            View view = new View(this);
+            GradientDrawable gradientDrawable = new GradientDrawable();
+            gradientDrawable.setColor(legendColors[i]);
+            gradientDrawable.setCornerRadius(Ui.px(4.0f));
+            view.setBackground(gradientDrawable);
+            LinearLayout.LayoutParams layoutParams2 = new LinearLayout.LayoutParams(Ui.px(16.0f), Ui.px(16.0f));
+            layoutParams2.rightMargin = Ui.px(4.0f);
+            linearLayout.addView(view, layoutParams2);
+        }
+        TextView textViewText2 = Ui.text(this, "多", 17.0f, -6514030, "sans-serif");
+        LinearLayout.LayoutParams layoutParams3 = new LinearLayout.LayoutParams(-2, -2);
+        layoutParams3.leftMargin = Ui.px(4.0f);
+        linearLayout.addView(textViewText2, layoutParams3);
+        LinearLayout.LayoutParams layoutParams4 = new LinearLayout.LayoutParams(-1, -2);
+        layoutParams4.topMargin = Ui.px(12.0f);
+        layoutParams4.bottomMargin = Ui.px(8.0f);
+        linearLayout.setLayoutParams(layoutParams4);
+        return linearLayout;
     }
 }

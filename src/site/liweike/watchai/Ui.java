@@ -4,123 +4,120 @@ import android.content.Context;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.util.DisplayMetrics;
-import android.util.TypedValue;
 import android.view.MotionEvent;
 import android.view.View;
 import android.widget.FrameLayout;
 import android.widget.TextView;
 
-/** Design space is 466x466 (round watch face). All sizes below are in that space. */
+/* JADX INFO: loaded from: classes.dex */
 final class Ui {
-    static final int BG = 0xFF1F1E1D, CARD = 0xFF2B2A28, STROKE = 0xFF3A3835, CHIP = 0xFF383633;
-    static final int TEXT = 0xFFF5F4ED, SUB = 0xFF9C9A92, INK = 0xFF1F1E1D;
-    static final int A1 = 0xFFD97757, A2 = 0xFFE3906F;
-    static final String SERIF = "serif", SANS = "sans-serif", SANS_M = "sans-serif-medium";
-    static final float C = 233f;
-    static float u = 1f;
+    static final int A1 = -2525353;
+    static final int A2 = -1863569;
+    static final int BG = -14737891;
+    static final float C = 233.0f;
+    static final int CARD = -13948376;
+    static final int CHIP = -13093325;
+    static final int INK = -14737891;
+    static final String SANS = "sans-serif";
+    static final String SANS_M = "sans-serif-medium";
+    static final String SERIF = "serif";
+    static final int STROKE = -12961739;
+    static final int SUB = -6514030;
+    static final int TEXT = -658195;
+    static float u = 1.0f;
 
-    static void init(Context c) {
-        DisplayMetrics m = c.getResources().getDisplayMetrics();
-        u = Math.min(m.widthPixels, m.heightPixels) / 466f;
+    Ui() {
     }
 
-    static int px(float v) { return Math.round(v * u); }
-
-    static int dim(float v) { return v < 0 ? (int) v : px(v); }
-
-    /** Half-width of the horizontal chord of the circle that fits a band between top and bottom. */
-    static float chordHalf(float top, float bottom, float inset) {
-        float r = C - inset;
-        float dy = Math.max(Math.abs(top - C), Math.abs(bottom - C));
-        float v = r * r - dy * dy;
-        return v > 0 ? (float) Math.sqrt(v) : 0f;
+    static void init(Context context) {
+        DisplayMetrics displayMetrics = context.getResources().getDisplayMetrics();
+        u = Math.min(displayMetrics.widthPixels, displayMetrics.heightPixels) / 466.0f;
     }
 
-    static GradientDrawable card(float r) {
-        GradientDrawable g = new GradientDrawable();
-        g.setColor(CARD);
-        g.setCornerRadius(px(r));
-        g.setStroke(Math.max(1, px(1)), STROKE);
-        return g;
+    static int px(float f) {
+        return Math.round(u * f);
     }
 
-    static GradientDrawable accent(float r) {
-        GradientDrawable g = new GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT, new int[]{A1, A2});
-        g.setCornerRadius(px(r));
-        return g;
+    static int dim(float f) {
+        return f < 0.0f ? (int) f : px(f);
     }
 
-    static GradientDrawable circle(int color) {
-        GradientDrawable g = new GradientDrawable();
-        g.setShape(GradientDrawable.OVAL);
-        g.setColor(color);
-        return g;
+    static float chordHalf(float f, float f2, float f3) {
+        float f4 = C - f3;
+        float fMax = Math.max(Math.abs(f - C), Math.abs(f2 - C));
+        float f5 = (f4 * f4) - (fMax * fMax);
+        if (f5 > 0.0f) {
+            return (float) Math.sqrt(f5);
+        }
+        return 0.0f;
+    }
+
+    static GradientDrawable card(float f) {
+        GradientDrawable gradientDrawable = new GradientDrawable();
+        gradientDrawable.setColor(CARD);
+        gradientDrawable.setCornerRadius(px(f));
+        gradientDrawable.setStroke(Math.max(1, px(1.0f)), STROKE);
+        return gradientDrawable;
+    }
+
+    static GradientDrawable accent(float f) {
+        GradientDrawable gradientDrawable = new GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT, new int[]{A1, A2});
+        gradientDrawable.setCornerRadius(px(f));
+        return gradientDrawable;
+    }
+
+    static GradientDrawable circle(int i) {
+        GradientDrawable gradientDrawable = new GradientDrawable();
+        gradientDrawable.setShape(1);
+        gradientDrawable.setColor(i);
+        return gradientDrawable;
     }
 
     static GradientDrawable accentCircle() {
-        GradientDrawable g = new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{A1, A2});
-        g.setShape(GradientDrawable.OVAL);
-        return g;
+        GradientDrawable gradientDrawable = new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{A1, A2});
+        gradientDrawable.setShape(1);
+        return gradientDrawable;
     }
 
-    static TextView text(Context c, String s, float size, int color, String family) {
-        TextView t = new TextView(c);
-        t.setText(s);
-        t.setTextSize(TypedValue.COMPLEX_UNIT_PX, size * u);
-        t.setTextColor(color);
-        t.setTypeface(Typeface.create(family, Typeface.NORMAL));
-        // Keep font padding on and add a little vertical room: CJK glyphs are taller than the Latin
-        // primary font, and TextView clips drawing to its own bounds, which cut the top/bottom of Chinese text.
-        t.setIncludeFontPadding(true);
-        t.setPadding(0, px(3), 0, px(3));
-        return t;
+    static TextView text(Context context, String str, float f, int i, String str2) {
+        TextView textView = new TextView(context);
+        textView.setText(str);
+        textView.setTextSize(0, u * f);
+        textView.setTextColor(i);
+        textView.setTypeface(Typeface.create(str2, 0));
+        textView.setIncludeFontPadding(true);
+        textView.setPadding(0, px(3.0f), 0, px(3.0f));
+        return textView;
     }
 
-    static FrameLayout.LayoutParams fl(float w, float h, int gravity, float left, float top) {
-        FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(dim(w), dim(h), gravity);
-        lp.leftMargin = px(left);
-        lp.topMargin = px(top);
-        return lp;
+    static FrameLayout.LayoutParams fl(float f, float f2, int i, float f3, float f4) {
+        FrameLayout.LayoutParams layoutParams = new FrameLayout.LayoutParams(dim(f), dim(f2), i);
+        layoutParams.leftMargin = px(f3);
+        layoutParams.topMargin = px(f4);
+        return layoutParams;
     }
 
-    static void pressable(View v) {
-        v.setOnTouchListener(new View.OnTouchListener() {
-            @Override public boolean onTouch(View x, MotionEvent e) {
-                int a = e.getActionMasked();
-                if (a == MotionEvent.ACTION_DOWN) {
-                    x.animate().scaleX(0.96f).scaleY(0.96f).setDuration(90).start();
-                } else if (a == MotionEvent.ACTION_UP || a == MotionEvent.ACTION_CANCEL) {
-                    x.animate().scaleX(1f).scaleY(1f).setDuration(140).start();
+    static void pressable(View view) {
+        view.setOnTouchListener(new View.OnTouchListener() { // from class: site.liweike.watchai.Ui.1
+            @Override // android.view.View.OnTouchListener
+            public boolean onTouch(View view2, MotionEvent motionEvent) {
+                int actionMasked = motionEvent.getActionMasked();
+                if (actionMasked == 0) {
+                    view2.animate().scaleX(0.96f).scaleY(0.96f).setDuration(90L).start();
+                    return false;
+                }
+                if (actionMasked == 1 || actionMasked == 3) {
+                    view2.animate().scaleX(1.0f).scaleY(1.0f).setDuration(140L).start();
+                    return false;
                 }
                 return false;
             }
         });
     }
 
-    /**
-     * 给一行列表挂长按，5% 震动反馈。
-     *
-     * 手表屏幕小、手指粗，长按是最不容易误触的删除手势；按下时就震一下，
-     * 不用等 500ms 系统阈值过去才知道"按对了"。
-     */
-    static void longPress(View v, Runnable action) {
-        android.os.Vibrator vib = (android.os.Vibrator) v.getContext()
-                .getSystemService(Context.VIBRATOR_SERVICE);
-        v.setOnLongClickListener(x -> {
-            if (vib != null && vib.hasVibrator()) {
-                try { vib.vibrate(35); } catch (Exception ignored) { }
-            }
-            x.animate().scaleX(0.94f).scaleY(0.94f).setDuration(80)
-                    .withEndAction(() -> x.animate().scaleX(1f).scaleY(1f).setDuration(140).start())
-                    .start();
-            if (action != null) action.run();
-            return true;
-        });
-    }
-
-    static void rise(View v, int delay) {
-        v.setAlpha(0f);
-        v.setTranslationY(px(14));
-        v.animate().alpha(1f).translationY(0f).setStartDelay(delay).setDuration(300).start();
+    static void rise(View view, int i) {
+        view.setAlpha(0.0f);
+        view.setTranslationY(px(14.0f));
+        view.animate().alpha(1.0f).translationY(0.0f).setStartDelay(i).setDuration(300L).start();
     }
 }
