@@ -1,0 +1,9 @@
+{
+  "name": "dsh-watch-v2-relay",
+  "version": "2.0.0",
+  "private": true,
+  "type": "module",
+  "main": "src/server.mjs",
+  "scripts": { "start": "node src/server.mjs" },
+  "license": "MIT"
+}

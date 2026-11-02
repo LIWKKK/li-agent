@@ -1,6 +1,17 @@
+# 构建产物
 build/
 gen/
-debug.keystore
 *.apk
-!WatchAI.apk
+*.apk.idsig
+
+# 中继运行时
+relay/.env
+relay/relay.log
+relay/keepalive.log
+relay/state/*
+!relay/state/.gitkeep
+
+# 本地临时
+*.log
+.DS_Store
 build-local.sh

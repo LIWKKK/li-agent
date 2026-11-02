@@ -80,23 +80,81 @@ app (手表)                         电脑
 | `WorkspacesActivity` / `ConversationsActivity` | 工作区 → 会话两级导航 |
 | `Ui.java` + 自绘 View | 全部视觉 |
 
-## 🚀 构建与安装
+## 🚀 部署
+
+两半都要装：**电脑上的中继**（手表的数据来源）+ **手表上的 APK**。
+
+### 一、中继（电脑侧，一键）
+
+```bash
+git clone https://github.com/LIWKKK/li-agent.git
+cd li-agent
+
+./deploy.sh                    # 交互式，会问端口/DSH_HOME/公网地址
+# 或无人值守：
+./deploy.sh --port 19490 --dsh-home ~/.dsh --yes
+```
+
+脚本做四件事：校验环境 → 生成 `relay/.env` → 起服务并跑健康检查 → 装每 5 分钟一次的保活 cron。
+跑完会打印**配对码**（手表配对时输入）。
+
+依赖只有 `node >= 20` 和 `curl`，中继**零 npm 依赖**，不需要 `npm install`。
+
+常用命令：
+
+```bash
+./deploy.sh --status           # 看运行状态 + 健康检查
+./deploy.sh --restart          # 重启
+./deploy.sh --stop             # 停止
+./deploy.sh --uninstall        # 卸掉自启（保留配置和源码）
+
+relay/relay-daemon.sh logs     # 看日志
+relay/relay-keepalive.sh       # 手动跑一次保活（cron 每分钟自动跑）
+```
+
+**保活机制**：cron 每分钟检查 `/api/status`，非 200 就自动拉起。实测强杀进程后 3 秒内恢复，
+日志在 `relay/keepalive.log`。DSH 重启、机器重启、进程崩溃都会自愈。
+
+### 二、手表 APK
 
 需要 JDK 17 + Android build-tools 34 + android-34 platform（路径在 `build.sh` 顶部改）：
 
 ```bash
-bash build.sh          # 产出 WatchAI.apk（约 93 KB）
+bash build.sh                  # 产出 WatchAI.apk（约 97 KB）
 adb install WatchAI.apk
 ```
 
-先在 `Net.java` 里填上你自己的中继地址和令牌：
+装之前先在 `Net.java` 里填上你的中继地址和令牌（令牌由 `./deploy.sh` 首次启动时生成在
+`~/.dsh-watch-v2.json` 的 `tokens` 里）：
 
 ```java
 static final String BASE_LAN = "http://192.168.x.x:19490";
 static final String TOKEN    = "your-relay-token";
 ```
 
-手表需与电脑同一局域网，或具备 IPv6 出网能力（中继地址自动学习）。
+手表与电脑同一局域网即可；出门则靠 IPv6 直连（中继地址自动学习并落盘，运营商换前缀也不用手改）。
+若走公网反代，把中继挂到 DSH 的 `/li-agent` 前缀下（见 `li-agent-bridge` 插件），
+`BASE_LAN` 填那个公网 URL 即可。
+
+### 三、华为手表安装（重要）
+
+华为穿戴设备有安装白名单，直接 `adb install` 会报 `INSTALL_FAILED_ABORTED: User rejected permissions`：
+
+```bash
+# 先查出本机已装的签名哈希格式
+adb shell "settings get secure hdc_install_allow_list"
+
+# 把你的包名#签名哈希追加进去（65 位十六进制，无冒号），保留原有条目
+adb shell "settings put secure hdc_install_allow_list '原有条目,你的包名#你的签名哈希'"
+adb install WatchAI.apk
+```
+
+**每次手表重启后白名单都会重置**，重装前要重新写一遍。签名哈希取自你的 keystore：
+
+```bash
+keytool -list -v -keystore ~/.li-agent-signing/li-agent.keystore -alias 你的别名 \
+  | grep SHA256 | awk '{print $2}' | tr -d ':' | tr 'A-F' 'a-f'
+```
 
 ## License
 
