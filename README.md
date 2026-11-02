@@ -115,7 +115,47 @@ relay/relay-keepalive.sh       # 手动跑一次保活（cron 每分钟自动跑
 **保活机制**：cron 每分钟检查 `/api/status`，非 200 就自动拉起。实测强杀进程后 3 秒内恢复，
 日志在 `relay/keepalive.log`。DSH 重启、机器重启、进程崩溃都会自愈。
 
-### 二、手表 APK
+### 二、网络连接原理（重要，出问题先看这节）
+
+手表连电脑有两条路，App 会自动挑能用的：
+
+| 路径 | 地址 | 适用 | 备注 |
+|---|---|---|---|
+| 局域网 | `BASE_LAN` | 同一 WiFi | 最稳，优先 |
+| IPv6 直连 | `http://[ipv6]:19490` | 出门在外 / 蜂窝 | 唯一的公网路径 |
+| 上次成功 | `lastGood` | 冷启动 | 排最前，避免撞死地址 |
+
+**IPv6 地址怎么来的**：中继在 `/api/status` 里上报 `ipv6`（取第一个非链路本地地址），
+App 每次连上就记住并落盘，下次出门直接用。
+
+**三个必须知道的坑**：
+
+1. **`IPV6_DEFAULT` 不能是假地址**
+   曾经填的是 `2001:db8::relay`——那是 RFC 3849 的文档示例段，公网永远不可达。
+   冷启动没缓存时会去连它，表现就是"出门必连不上"。填真实 IP。
+
+2. **`publicUrl` 这条路不存在**
+   早期配过 `https://fnos.net/.../li-agent`，实测该域名任何路径都返回 FN Connect
+   登录页 HTML（不是隧道），已从代码和配置里彻底删除。别再配它。
+
+3. **IPv6 是动态的**
+   运营商给的地址 `preferred_lft` 只有 30–60 分钟，会轮换。地址一变，手表存的
+   旧地址立刻失效。要长期稳定必须上 DDNS（见下）。
+
+### 三、IPv6 长期稳定（可选但推荐）
+
+`ipv6-ddns.sh` 已实现：检测地址变化 → 推给 dynv6 → 手表只认域名。
+
+```bash
+# 去 https://dynv6.com 免费注册 → 创建 zone → 拿 token，填进 ddns.conf
+DYNV6_HOST="yourname.dynv6.net"
+DYNV6_TOKEN="your_token"
+```
+
+cron 已配置每 5 分钟跑一次。配好后把 `Net.java` 的 `IPV6_DEFAULT`
+改成域名解析出的地址即可（或直接改用域名访问）。
+
+### 四、手表 APK
 
 需要 JDK 17 + Android build-tools 34 + android-34 platform（路径在 `build.sh` 顶部改）：
 
@@ -136,7 +176,7 @@ static final String TOKEN    = "your-relay-token";
 若走公网反代，把中继挂到 DSH 的 `/li-agent` 前缀下（见 `li-agent-bridge` 插件），
 `BASE_LAN` 填那个公网 URL 即可。
 
-### 三、华为手表安装（重要）
+### 五、华为手表安装（重要）
 
 华为穿戴设备有安装白名单，直接 `adb install` 会报 `INSTALL_FAILED_ABORTED: User rejected permissions`：
 

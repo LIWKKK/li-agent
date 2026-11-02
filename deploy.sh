@@ -20,7 +20,6 @@ ENV_FILE="$RELAY_DIR/.env"
 PORT="${RELAY_PORT:-19490}"
 DSH_PORT="${DSH_PORT:-3080}"
 DSH_HOME_DEFAULT="${DSH_HOME:-$HOME/.dsh}"
-PUBLIC_URL="${LI_AGENT_PUBLIC_URL:-}"
 ASSUME_YES=0
 ACTION="deploy"
 
@@ -34,7 +33,6 @@ while [ $# -gt 0 ]; do
     --port)      PORT="$2"; shift 2 ;;
     --dsh-port)  DSH_PORT="$2"; shift 2 ;;
     --dsh-home)  DSH_HOME_DEFAULT="$2"; shift 2 ;;
-    --public-url) PUBLIC_URL="$2"; shift 2 ;;
     --yes|-y)    ASSUME_YES=1; shift ;;
     --status)    ACTION="status"; shift ;;
     --stop)      ACTION="stop"; shift ;;
@@ -72,7 +70,6 @@ write_env() {
 RELAY_PORT=$PORT
 DSH_PORT=$DSH_PORT
 DSH_HOME=$DSH_HOME_DEFAULT
-LI_AGENT_PUBLIC_URL=$PUBLIC_URL
 EOF
   chmod 600 "$ENV_FILE"
   c_green "✓ 配置写入 $ENV_FILE"
@@ -165,7 +162,6 @@ do_deploy() {
     printf '中继端口 [%s]: ' "$PORT"; read -r v; [ -n "${v:-}" ] && PORT="$v"
     printf 'DSH 端口 [%s]: ' "$DSH_PORT"; read -r v; [ -n "${v:-}" ] && DSH_PORT="$v"
     printf 'DSH_HOME [%s]: ' "$DSH_HOME_DEFAULT"; read -r v; [ -n "${v:-}" ] && DSH_HOME_DEFAULT="$v"
-    printf '公网地址（可空，例如 https://xxx/li-agent）: '; read -r v; [ -n "${v:-}" ] && PUBLIC_URL="$v"
   fi
 
   write_env
@@ -173,8 +169,7 @@ do_deploy() {
 
   c_dim "启动中继…"
   RELAY_PORT="$PORT" DSH_PORT="$DSH_PORT" DSH_HOME="$DSH_HOME_DEFAULT" \
-    LI_AGENT_PUBLIC_URL="$PUBLIC_URL" RELAY_LOG="$RELAY_DIR/relay.log" \
-    bash "$DAEMON" restart
+    RELAY_LOG="$RELAY_DIR/relay.log" bash "$DAEMON" restart
 
   self_check || { c_red "部署失败，看日志：$RELAY_DIR/relay.log"; exit 1; }
   install_autostart
@@ -182,7 +177,6 @@ do_deploy() {
   c_bold ""
   c_green "== 部署完成 =="
   c_dim "局域网地址：http://$(hostname -I 2>/dev/null | awk '{print $1}'):$PORT"
-  [ -n "$PUBLIC_URL" ] && c_dim "公网地址：$PUBLIC_URL"
   c_dim "常用命令：./deploy.sh --status | --restart | --stop | relay/relay-daemon.sh logs"
 }
 

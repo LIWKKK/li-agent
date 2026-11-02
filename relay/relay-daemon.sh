@@ -2,7 +2,7 @@
 # LI Agent 中继守护脚本 —— start | stop | restart | status | logs
 #
 # 设计要点：
-#   - 所有可变值走环境变量（RELAY_PORT / DSH_HOME / LI_AGENT_PUBLIC_URL），脚本本身不含机器特定值
+#   - 所有可变值走环境变量（RELAY_PORT / DSH_PORT / DSH_HOME），脚本本身不含机器特定值
 #   - 用 setsid + nohup 脱离终端，SSH 断开不影响
 #   - PID 文件放 TMPDIR，重启机器后自然失效（不会误判僵尸 PID）
 #   - status 做真实 HTTP 健康检查，不只看进程在不在
@@ -14,6 +14,20 @@ LOG_FILE="${RELAY_LOG:-${DIR}/relay.log}"
 PORT="${RELAY_PORT:-19490}"
 DSH_PORT="${DSH_PORT:-3080}"
 NODE_BIN="${NODE_BIN:-node}"
+
+# 先加载同目录 .env（deploy.sh 生成）。
+# 漏掉这步时直接跑 relay-daemon.sh 会拿不到端口等配置，跟 deploy.sh 起出来的实例行为不一致。
+ENV_FILE="$DIR/.env"
+if [ -f "$ENV_FILE" ]; then
+  set -a
+  # shellcheck disable=SC1090
+  . "$ENV_FILE"
+  set +a
+fi
+
+# 显式环境变量优先于 .env
+PORT="${RELAY_PORT:-$PORT}"
+DSH_PORT="${DSH_PORT:-$DSH_PORT}"
 
 alive() {
   [ -f "$PID_FILE" ] || return 1
@@ -37,10 +51,9 @@ start() {
   rm -f "$PID_FILE"
   cd "$DIR" || return 1
 
-  # 用 env 数组传变量：${VAR:+VAR="x"} 会把引号当字面量，env 赋值必失败
+  # 用 env 数组传变量：${VAR:+VAR="x"} 会把引号当字面量，env 赋值必失败。
   local envargs=(RELAY_PORT="$PORT" DSH_PORT="$DSH_PORT")
   [ -n "${DSH_HOME:-}" ] && envargs+=(DSH_HOME="$DSH_HOME")
-  [ -n "${LI_AGENT_PUBLIC_URL:-}" ] && envargs+=(LI_AGENT_PUBLIC_URL="$LI_AGENT_PUBLIC_URL")
 
   setsid nohup env "${envargs[@]}" "$NODE_BIN" src/server.mjs >>"$LOG_FILE" 2>&1 < /dev/null &
   local pid=$!

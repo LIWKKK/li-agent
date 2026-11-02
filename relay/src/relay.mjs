@@ -46,9 +46,6 @@ class Relay {
     this.dshPort = options.dshPort
     this.stateFile = options.stateFile
     this.startedAt = Date.now()
-    // 公网地址：fnOS 官方远程访问把本中继桥接在 /li-agent 前缀下，
-    // 地址固定、不需要隧道。可由环境变量或状态文件覆盖。
-    this.publicBaseUrl = options.publicBaseUrl ?? process.env.LI_AGENT_PUBLIC_URL ?? undefined
     this.tokens = new Map()      // token -> expiresAt
     this.pairingCode = this.newCode()
     this.liveCache = undefined
@@ -183,7 +180,53 @@ class Relay {
   }
 
   /** 磁盘：读 /proc/mounts + /proc/diskstats 拿挂载点与容量（df 同步执行）。 */
-  /** 取本机公网可用的 IPv6（跳过链路本地与内部地址）。 */
+  /**
+   * 取本机公网可用的 IPv6。
+   *
+   * 坑：上一版取"第一个非 fe80 的 IPv6"，结果拿到 /128 的**临时隐私地址**——
+   * 那种地址 valid_lft 只有一两个小时，轮换后手表存的地址立刻失效，表现就是
+   * "平时能连、出门连不上"。
+   *
+   * 正确做法：优先取 /64 的稳定地址（mngtmpaddr 那条，运营商前缀真正分配下来的），
+   * 没有 /64 才退回任意全局地址；/128 的临时地址排最后。
+   * ULA（fc00::/7）不对外可达，直接排除，只有没有任何公网地址时才兜底。
+   */
+  /**
+   * 本机全部可用的公网 IPv6（按可靠性排序）。
+   *
+   * 单取一个地址有风险：运营商常同时下发 /128 的个人地址和 /64 前缀地址，
+   * 哪种能从外面连进来取决于路由器/运营商策略，中继侧判断不了。
+   * 所以把候选全给出去，让手表逐个试——哪个通就用哪个。
+   */
+  localIPv6List() {
+    try {
+      const out = []
+      for (const [name, list] of Object.entries(networkInterfaces())) {
+        if (name === 'docker0' || name.startsWith('br-') || name.startsWith('veth')) continue
+        for (const item of list ?? []) {
+          if (item.family !== 'IPv6' || item.internal) continue
+          if (item.address.startsWith('fe80')) continue
+          if (/^f[cd]/i.test(item.address)) continue   // ULA 不可对外
+          const prefixLen = Number(String(item.cidr ?? '').split('/')[1] ?? 128)
+          // /64 前缀地址最常见（运营商正式分配的），/128 是补充地址
+          const score = prefixLen === 64 ? 100 : prefixLen === 128 ? 50 : 10
+          out.push({ address: item.address, score })
+        }
+      }
+      out.sort((a, b) => b.score - a.score)
+      return [...new Set(out.map((o) => o.address))]
+    } catch { /* 忽略 */ }
+    return []
+  }
+
+  /**
+   * 对外上报的主 IPv6：取**第一个匹配**（保持老行为）。
+   *
+   * 教训：我一度改成"优先 /64 前缀地址"，结果反而连不上——实测
+   * `curl -6 ifconfig.co` 显示运营商真正公布的出口是那条 /128 SLAAC 地址，
+   * /64 那条虽然前缀更"标准"，但对公网入站不一定放行。
+   * 不要用"看起来更规范"去替代"实测能用"。
+   */
   localIPv6() {
     try {
       for (const list of Object.values(networkInterfaces())) {
@@ -334,6 +377,7 @@ class Relay {
     const host = {
       hostname: hostname(),
       ipv6: this.localIPv6(),
+      ipv6List: this.localIPv6List(),
       platform: process.platform,
       release: extra.release ?? undefined,
       arch: process.arch,
@@ -403,7 +447,7 @@ class Relay {
         uptimeMs: Date.now() - this.startedAt,
         // 公网 IPv6：手表出门时用它直连，无需端口转发。
         ipv6: this.localIPv6(),
-        ...(this.publicBaseUrl === undefined ? {} : { publicUrl: this.publicBaseUrl }),
+        ipv6List: this.localIPv6List(),
       })
       return
     }
@@ -412,7 +456,6 @@ class Relay {
         ok: true,
         service: SERVICE,
         addresses: this.addresses().map((a) => `http://${a}:${this.port}`),
-        ...(this.publicBaseUrl === undefined ? {} : { publicUrl: this.publicBaseUrl }),
       })
       return
     }
@@ -433,7 +476,6 @@ class Relay {
         token,
         expiresInMs: TOKEN_TTL_MS,
         addresses: this.addresses().map((a) => `http://${a}:${this.port}`),
-        ...(this.publicBaseUrl === undefined ? {} : { publicUrl: this.publicBaseUrl }),
       })
       return
     }
