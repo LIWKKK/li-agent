@@ -30,14 +30,23 @@ final class Net {
     /** 局域网地址（电脑在 19490 端口）。 */
     static final String BASE_LAN = "http://192.168.1.100:19490";
 
-    /** 首次使用的 IPv6 兜底（还没连过局域网时用）。 */
-    private static final String IPV6_DEFAULT = "2001:db8::relay";
+    /**
+     * 出厂 IPv6 兜底（前缀）。
+     *
+     * 教训一：别填 RFC 3849 的 `2001:db8::`，那是文档示例段，公网永远不可达。
+     * 教训二：也别填完整地址——运营商每几十分钟换一次主机位（实测
+     * `...:f153:2` → `...:f153:5`），写死就必然过期。
+     *
+     * 现状：运营商只换**最后一段**，前缀稳定。所以这里只存前缀，
+     * 首次连接时扫描后缀自动找到真实地址（见 smartProbe）。
+     */
+    private static final String IPV6_PREFIX = "2409:0000:0000:0000:0000:0000:0000";
 
     /** 中继令牌。 */
     static final String TOKEN = "RELAY_TOKEN";
 
     /** 上次记下的 IPv6（静态，进程内共享）。 */
-    private static String ipv6 = IPV6_DEFAULT;
+    private static String ipv6 = "";
 
     /** 上次成功的地址，下次优先用它——这是"响应慢"的主要修复点。 */
     private static volatile String lastGood = "";
@@ -89,6 +98,47 @@ final class Net {
     }
 
     static String currentIPv6() { return ipv6 == null ? "" : ipv6; }
+
+    /**
+     * 前缀扫描：运营商只换最后一段，把 1..254 全试一遍就能找到真身。
+     *
+     * 为什么可行：实测 IPv6 从 `...:f153:2` 变成 `...:f153:5`，
+     * 前 15 段一个没动。所以没必要让用户手改地址，扫一遍即可。
+     * 用独立线程池跑，不占主请求池。
+     */
+    static void smartProbe(String prefix, java.util.function.Consumer<String> onFound) {
+        if (prefix == null || prefix.trim().isEmpty() || onFound == null) return;
+        final String base = prefix.trim();
+        final java.util.concurrent.atomic.AtomicBoolean settled =
+                new java.util.concurrent.atomic.AtomicBoolean(false);
+        final java.util.concurrent.ExecutorService scanner =
+                java.util.concurrent.Executors.newFixedThreadPool(32);
+
+        for (int i = 1; i <= 254 && !settled.get(); i++) {
+            final String candidate = base + ":" + Integer.toHexString(i);
+            scanner.execute(() -> {
+                HttpURLConnection conn = null;
+                try {
+                    conn = (HttpURLConnection) new URL("http://[" + candidate + "]:19490/api/status")
+                            .openConnection();
+                    conn.setConnectTimeout(1200);
+                    conn.setReadTimeout(1200);
+                    conn.setRequestMethod("GET");
+                    if (conn.getResponseCode() == 200) {
+                        if (settled.compareAndSet(false, true)) {
+                            INSTANCE.main.post(() -> onFound.accept(candidate));
+                        }
+                    }
+                } catch (Exception ignored) {
+                    // 扫不到是常态，继续下一个
+                } finally {
+                    if (conn != null) conn.disconnect();
+                }
+            });
+        }
+        // 扫描器跑完自己关闭（最多 254 个任务，很快）
+        scanner.shutdown();
+    }
 
     /** 候选地址：局域网优先，IPv6 兜底。 */
     static String[] bases() {
@@ -218,7 +268,22 @@ final class Net {
     private void requestAt(String method, String[] candidates, int index,
                            String path, JSONObject body, Callback cb) {
         if (index >= candidates.length) {
-            main.post(() -> cb.onResult(false, null, "连不上中继"));
+            // 所有已知地址都不通——可能运营商换了 IPv6 主机位。
+            // 用前缀扫一遍当前网段，找到就记住并重试一次。
+            final String[] tried = candidates;
+            smartProbe(IPV6_PREFIX, found -> {
+                ipv6 = found;
+                if (appContext != null) persist(appContext);
+                // 找到新地址后重试一次（只重试一次，避免死循环）
+                final String newBase = "http://[" + found + "]:19490";
+                for (String t : tried) {
+                    if (t.equals(newBase)) {
+                        cb.onResult(false, null, "连不上中继");
+                        return;
+                    }
+                }
+                requestAt(method, new String[]{newBase}, 0, path, body, cb);
+            });
             return;
         }
         final String base = candidates[index];
